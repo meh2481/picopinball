@@ -13,6 +13,11 @@ playing_stop_timer = 0
 uart = None
 PLAY_STOP_TIMER_AMOUNT = 5
 
+# LED for testing
+print("Initializing LED...")
+led = digitalio.DigitalInOut(board.GP25)
+led.direction = digitalio.Direction.OUTPUT
+led.value = True
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
@@ -119,7 +124,6 @@ sdcard = adafruit_sdcard.SDCard(spi, cs)
 vfs = storage.VfsFat(sdcard)
 storage.mount(vfs, "/sd")
 
-
 # Init the audio board
 print("Initializing audio board...")
 uart = init_uart()
@@ -128,29 +132,15 @@ uart = init_uart()
 print("Initializing UART for other pico...")
 uart_comm = init_uart_comm()
 
-# LED for testing
-print("Initializing LED...")
-led = digitalio.DigitalInOut(board.GP25)
-led.direction = digitalio.Direction.OUTPUT
-led.value = False
-
 # Init audio PWM out and music file
 print("Initializing audio PWM out...")
 audio = audiopwmio.PWMAudioOut(board.GP0)
 decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
-# Init test audio play pin
-print("Initializing test audio play pin...")
-snd_play = digitalio.DigitalInOut(board.GP19)
-snd_play.direction = digitalio.Direction.INPUT
-snd_play.pull = digitalio.Pull.UP
-snd_play_debounced = Debouncer(snd_play)
-
 print("Start main loop...")
 while True:
     audio.play(decoder) # Loop music forever
     while audio.playing:
-        snd_play_debounced.update()
         # Print any data on the UART line from the audio fx board
         while uart.in_waiting > 0:
             readline(uart)
@@ -159,7 +149,3 @@ while True:
             readline_comm(uart_comm)
         
         playing_stop_timer -= 1
-        if snd_play_debounced.fell:
-            play_sound(uart, 24)
-        
-        led.value = not snd_play_debounced.value

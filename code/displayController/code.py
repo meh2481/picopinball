@@ -65,17 +65,27 @@ SERVO_TIMEOUT = 1.0
 # Release any resources currently in use for the displays
 displayio.release_displays()
 
+# LED for testing
+print("Initializing LED...")
+led = DigitalInOut(board.GP25)
+led.direction = Direction.OUTPUT
+led.value = True
+
+
 def increase_score(text_area, add):
     """Update the score on the screen."""
     global score
     score += add
-    text_area.text = ''.join(reversed(f"{score}"))    # Reverse because RTL idk what I'm doing
+    # Reverse because RTL idk what I'm doing
+    text_area.text = ''.join(reversed(f"{score}"))
+
 
 def play_sound(sound_idx):
     """Send a sound play request on the UART bus."""
     global uart_sound
     snd_str = f"SND {sound_idx}\r\n"
     uart_sound.write(bytearray(snd_str, "utf-8"))
+
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
@@ -86,20 +96,24 @@ def readline(uart_bus):
         # TODO: Command parsing
         print(data_string, end="")
 
+
 def init_uart(tx_pin, rx_pin):
     """Initialize a UART bus."""
     uart = busio.UART(tx=tx_pin, rx=rx_pin, baudrate=9600, timeout=0.5)
     return uart
 
+
 def rand_ship_time():
     """Return a random time for the servo to update next."""
     return time.monotonic() + random.uniform(5, 30)
+
 
 def rand_ship_angle(cur_angle):
     """Return a random angle for the ship servo to update to."""
     min_angle = max(cur_angle - 30, 50)
     max_angle = min(cur_angle + 30, 130)
     return random.randint(min_angle, max_angle)
+
 
 # Setup I2C for the I/O expander
 pins = [0, 11, 10, 9, 8]
@@ -119,10 +133,8 @@ tft_reset = board.GP11
 tft_backlight = board.GP9
 
 # Setup display
-display_bus = displayio.FourWire(
-    spi, command=tft_dc, chip_select=tft_cs, reset=tft_reset
-)
-display = ST7789(display_bus, width=240, height=320, rotation=180, backlight_pin=tft_backlight)
+display_bus = displayio.FourWire(spi, command=tft_dc, chip_select=tft_cs, reset=tft_reset)
+display = ST7789(display_bus, width=240, height=320,rotation=180, backlight_pin=tft_backlight)
 
 # Load score background
 bitmap, palette = adafruit_imageload.load(
@@ -189,7 +201,7 @@ ir_sensor_states = [False, False, False, False]
 
 # Ship servo
 servo_pwm = pwmio.PWMOut(board.GP16, frequency=50)
-ship_servo = servo.Servo(servo_pwm, min_pulse = 500, max_pulse = 2500)
+ship_servo = servo.Servo(servo_pwm, min_pulse=500, max_pulse=2500)
 cur_ship_angle = ship_servo.angle = 90
 rand_servo_time = rand_ship_time()
 servo_shutoff_time = time.monotonic() + SERVO_TIMEOUT
@@ -200,6 +212,14 @@ n = 0
 NUM_PINS = len(pins)
 PIN_DELAY = 1000
 TOTAL_CYCLE = NUM_PINS * PIN_DELAY
+hyperspace_sound_list = [
+    HYPERSPACE_LAUNCH_SOUND,
+    HYPERSPACE_JACKPOT_SOUND,
+    HYPERSPACE_LAUNCH_SOUND,
+    HYPERSPACE_EXTRA_BALL_SOUND,
+    HYPERSPACE_GRAVITY_WELL_SOUND
+]
+cur_hyperspace_sound = 0
 while True:
     # Update debouncers
     debounced_spinner.update()
@@ -213,8 +233,9 @@ while True:
     if debounced_button.fell:
         print("Test button pressed")
         increase_score(text_area_score, 100)
-        play_sound(HYPERSPACE_LAUNCH_SOUND)
-    
+        play_sound(hyperspace_sound_list[cur_hyperspace_sound])
+        cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
+
     # Update score and play sounds for IR sensor being triggered
     for i in range(len(ir_sensors)):
         sensor = ir_sensors[i]
@@ -251,4 +272,3 @@ while True:
         print("Turn off ship servo")
         ship_servo.angle = None
         servo_shutoff_time = rand_servo_time + SERVO_TIMEOUT
-    
