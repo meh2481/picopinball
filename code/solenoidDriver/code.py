@@ -40,17 +40,19 @@ calibration_counter = POP_BUMPER_CALIBRATE_COUNT
 status_led.value = False    # Turn off status LED while calibrating and setting up
 while calibration_counter > 0:
     for i in range(3):
-        val = pop_bumper_pin_1.value
+        val = pop_bumper_pins[i].value
         pop_bumper_vals[i].append(val)
         pop_bumper_vals[i].pop(0)
         avg_val = sum(pop_bumper_vals[i]) / len(pop_bumper_vals[i])
         calibration_counter -= 1
         if avg_val > max_pb_val[i]:
             max_pb_val[i] = avg_val
+print("Pop bumper calibration complete.")
 
 # Add a bit of margin above which the pop bumper will trigger
 for i in range(3):
     max_pb_val[i] = max_pb_val[i] + POP_BUMPER_SENSITIVITY
+    print("Pop bumper {} max value: {}".format(i, max_pb_val[i]))
 
 # Init pop bumper output pins
 pop_bumper_1_out = DigitalInOut(board.GP20)
@@ -147,7 +149,7 @@ while True:
             pb_debounce_counter[i] += 1
             if pb_debounce_counter[i] > POP_BUMPER_DEBOUNCE_COUNT:
                 pop_bumper_out_pins[i].value = True
-                pop_bumper_fire_time[i] = cur_time + POP_BUMPER_TRIGGER_TIME
+                pop_bumper_fire_time[i] = cur_time
         else:
             if POP_BUMPER_TRIGGER_TIME + pop_bumper_fire_time[i] < cur_time:
                 pop_bumper_out_pins[i].value = False
