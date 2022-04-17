@@ -1,5 +1,7 @@
 import time
 import board
+import pwmio
+from adafruit_motor import servo
 from analogio import AnalogIn
 from digitalio import DigitalInOut, Direction, Pull
 
@@ -11,6 +13,11 @@ POP_BUMPER_SENSITIVITY = 30
 POP_BUMPER_DEBOUNCE_COUNT = 20
 POP_BUMPER_CALIBRATE_COUNT = 10000
 POP_BUMPER_DEBOUNCE_DECREMENT = 10
+DROP_TARGET_WAIT_TIME = 1.0
+DROP_TARGET_UP_ANGLE = 95
+DROP_TARGET_UP_TIME = 0.5
+DROP_TARGET_DOWN_ANGLE = 15
+DROP_TARGET_DOWN_TIME = 0.25
 
 # Leave the LED on while the pico is running
 status_led = DigitalInOut(board.GP25)
@@ -105,6 +112,24 @@ sling_solenoid_r = DigitalInOut(board.GP3)
 sling_solenoid_r.direction = Direction.OUTPUT
 sling_solenoid_r.value = False
 
+# Init drop target switch pins
+drop_target_switch_1 = DigitalInOut(board.GP5)
+drop_target_switch_1.direction = Direction.INPUT
+drop_target_switch_1.pull = Pull.UP
+
+drop_target_switch_2 = DigitalInOut(board.GP6)
+drop_target_switch_2.direction = Direction.INPUT
+drop_target_switch_2.pull = Pull.UP
+
+drop_target_switch_3 = DigitalInOut(board.GP7)
+drop_target_switch_3.direction = Direction.INPUT
+drop_target_switch_3.pull = Pull.UP
+
+# Init drop target PWM
+drop_target_pwm = pwmio.PWMOut(board.GP4, frequency=50)
+drop_target_servo = servo.Servo(drop_target_pwm, min_pulse=500, max_pulse=2500)
+
+# Init variables
 sling_l_trigger_time = 0
 sling_r_trigger_time = 0
 pop_bumper_fire_time = [0 for _ in range(3)]
@@ -156,3 +181,15 @@ while True:
             pb_debounce_counter[i] -= POP_BUMPER_DEBOUNCE_DECREMENT
             if pb_debounce_counter[i] < 0:
                 pb_debounce_counter[i] = 0
+
+    # Update drop targets
+    if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value:
+        print("All switches down, raising servos")
+        # XXX: No active sleep, keep updating main loop
+        drop_target_servo.angle = None
+        time.sleep(DROP_TARGET_WAIT_TIME)
+        drop_target_servo.angle = DROP_TARGET_UP_ANGLE
+        time.sleep(DROP_TARGET_UP_TIME)
+        drop_target_servo.angle = DROP_TARGET_DOWN_ANGLE
+        time.sleep(DROP_TARGET_DOWN_TIME)
+        drop_target_servo.angle = None
