@@ -131,3 +131,24 @@ dmypy.json
 .metadata_never_index
 .vscode/
 boot_out.txt
+
+*.zip
+*#auto_saved_files#
+*.sch-bak
+*.gbl
+*.gbs
+*.gbp
+*.gbo
+*.gm1
+*.gtl
+*.gts
+*.gtp
+*.gto
+*.drl
+*.gbr
+*.kicad_pcb-bak
+*.kicad_sch-bak
+**/PopBumperController - Copy/**
+*/Sound Controller_old/*
+**/_autosave-*
+**/fp-info-cache
