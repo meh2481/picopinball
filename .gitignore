@@ -152,3 +152,6 @@ boot_out.txt
 */Sound Controller_old/*
 **/_autosave-*
 **/fp-info-cache
+
+*.FCStd1
+*.stl
