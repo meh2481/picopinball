@@ -183,13 +183,13 @@ while True:
                 pb_debounce_counter[i] = 0
 
     # Update drop targets
-    if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value:
-        print("All switches down, raising servos")
+    # if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value:
+        # print("All switches down, raising servos")
         # XXX: No active sleep, keep updating main loop
-        drop_target_servo.angle = None
-        time.sleep(DROP_TARGET_WAIT_TIME)
-        drop_target_servo.angle = DROP_TARGET_UP_ANGLE
-        time.sleep(DROP_TARGET_UP_TIME)
-        drop_target_servo.angle = DROP_TARGET_DOWN_ANGLE
-        time.sleep(DROP_TARGET_DOWN_TIME)
-        drop_target_servo.angle = None
+        # drop_target_servo.angle = None
+        # time.sleep(DROP_TARGET_WAIT_TIME)
+        # drop_target_servo.angle = DROP_TARGET_UP_ANGLE
+        # time.sleep(DROP_TARGET_UP_TIME)
+        # drop_target_servo.angle = DROP_TARGET_DOWN_ANGLE
+        # time.sleep(DROP_TARGET_DOWN_TIME)
+        # drop_target_servo.angle = None
