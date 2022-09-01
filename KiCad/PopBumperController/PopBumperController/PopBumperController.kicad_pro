@@ -378,18 +378,7 @@
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
         "name": "12V",
-        "nets": [
-          "/12V",
-          "/SOL1",
-          "/SOL2",
-          "/SOL3",
-          "/SOL4",
-          "/SOL5",
-          "/SOL6",
-          "/SOL7",
-          "/SOL8",
-          "/SOL9"
-        ],
+        "nets": [],
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 1.25,
@@ -402,7 +391,7 @@
       "version": 2
     },
     "net_colors": {
-      "/12V": "rgb(255, 162, 55)"
+      "Net-(BTNL1-Pad1)": "rgb(255, 162, 55)"
     }
   },
   "pcbnew": {
