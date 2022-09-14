@@ -6,6 +6,7 @@ from analogio import AnalogIn
 from digitalio import DigitalInOut, Direction, Pull
 from adafruit_display_text import label
 from adafruit_st7789 import ST7789
+import adafruit_ili9341
 import adafruit_imageload
 import time
 from adafruit_debouncer import Debouncer
@@ -135,6 +136,7 @@ tft_backlight = board.GP9
 # Setup display
 display_bus = displayio.FourWire(spi, command=tft_dc, chip_select=tft_cs, reset=tft_reset)
 display = ST7789(display_bus, width=240, height=320,rotation=180, backlight_pin=tft_backlight)
+# display = adafruit_ili9341.ILI9341(display_bus, width=240, height=320, rotation=270, backlight_pin=tft_backlight)
 
 # Load score background
 bitmap, palette = adafruit_imageload.load(
