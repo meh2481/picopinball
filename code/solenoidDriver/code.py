@@ -9,7 +9,7 @@ from digitalio import DigitalInOut, Direction, Pull
 SLING_TRIGGER_TIME = 0.11
 POP_BUMPER_TRIGGER_TIME = 0.125
 NUM_POP_BUMPER_SAMPLES = 20
-POP_BUMPER_SENSITIVITY = 30
+POP_BUMPER_SENSITIVITY = 25
 POP_BUMPER_DEBOUNCE_COUNT = 20
 POP_BUMPER_CALIBRATE_COUNT = 10000
 POP_BUMPER_DEBOUNCE_DECREMENT = 10
@@ -18,6 +18,11 @@ DROP_TARGET_UP_ANGLE = 95
 DROP_TARGET_UP_TIME = 0.5
 DROP_TARGET_DOWN_ANGLE = 15
 DROP_TARGET_DOWN_TIME = 0.25
+
+DRAIN_DELAY_TIME = 2.5
+DRAIN_TRIGGER_TIME = 1.1
+HYPERSPACE_DELAY_TIME = 0.75
+HYPERSPACE_TRIGGER_TIME = 1.1
 
 # Leave the LED on while the pico is running
 status_led = DigitalInOut(board.GP25)
@@ -125,6 +130,24 @@ drop_target_switch_3 = DigitalInOut(board.GP7)
 drop_target_switch_3.direction = Direction.INPUT
 drop_target_switch_3.pull = Pull.UP
 
+# Init IR sensors
+ir_drain = DigitalInOut(board.GP10)
+ir_drain.direction = Direction.INPUT
+ir_drain.pull = Pull.UP
+
+ir_hyperspace = DigitalInOut(board.GP12)
+ir_hyperspace.direction = Direction.INPUT
+ir_hyperspace.pull = Pull.UP
+
+# Init IR solenoids
+reload_solenoid = DigitalInOut(board.GP11)
+reload_solenoid.direction = Direction.OUTPUT
+reload_solenoid.value = False
+
+hyperspace_solenoid = DigitalInOut(board.GP13)
+hyperspace_solenoid.direction = Direction.OUTPUT
+hyperspace_solenoid.value = False
+
 # Init drop target PWM
 drop_target_pwm = pwmio.PWMOut(board.GP4, frequency=50)
 drop_target_servo = servo.Servo(drop_target_pwm, min_pulse=500, max_pulse=2500)
@@ -133,6 +156,8 @@ drop_target_servo = servo.Servo(drop_target_pwm, min_pulse=500, max_pulse=2500)
 sling_l_trigger_time = 0
 sling_r_trigger_time = 0
 pop_bumper_fire_time = [0 for _ in range(3)]
+sol_drain_trigger_time = 0
+sol_hyperspace_trigger_time = 0
 
 # Main loop
 status_led.value = True   # Turn on status LED again now that we're running for real
@@ -163,6 +188,25 @@ while True:
         sling_solenoid_l.value = False
     if cur_time > sling_r_trigger_time:
         sling_solenoid_r.value = False
+    
+    # Update drain solenoid
+    if not ir_drain.value:
+        print("drain sensor")
+        sol_drain_trigger_time = cur_time + DRAIN_DELAY_TIME
+    if cur_time > sol_drain_trigger_time and cur_time < sol_drain_trigger_time + DRAIN_TRIGGER_TIME:
+        print("Firing reload solenoid")
+        reload_solenoid.value = True
+    else:
+        reload_solenoid.value = False
+    
+    # Update hyperspace solenoid
+    if not ir_hyperspace.value and sol_hyperspace_trigger_time + HYPERSPACE_TRIGGER_TIME * 3 < cur_time:
+        sol_hyperspace_trigger_time = cur_time + HYPERSPACE_DELAY_TIME
+    if cur_time > sol_hyperspace_trigger_time and cur_time < sol_hyperspace_trigger_time + HYPERSPACE_TRIGGER_TIME:
+        print("Firing hyperspace solenoid")
+        hyperspace_solenoid.value = True
+    else:
+        hyperspace_solenoid.value = False
 
     # Update pop bumpers
     for i in range(3):
@@ -174,6 +218,7 @@ while True:
             pb_debounce_counter[i] += 1
             if pb_debounce_counter[i] > POP_BUMPER_DEBOUNCE_COUNT:
                 pop_bumper_out_pins[i].value = True
+                print("Firing pop bumper #", i)
                 pop_bumper_fire_time[i] = cur_time
         else:
             if POP_BUMPER_TRIGGER_TIME + pop_bumper_fire_time[i] < cur_time:
@@ -183,13 +228,13 @@ while True:
                 pb_debounce_counter[i] = 0
 
     # Update drop targets
-    # if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value:
-        # print("All switches down, raising servos")
+    if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value:
+        print("All switches down, raising servos")
         # XXX: No active sleep, keep updating main loop
-        # drop_target_servo.angle = None
-        # time.sleep(DROP_TARGET_WAIT_TIME)
-        # drop_target_servo.angle = DROP_TARGET_UP_ANGLE
-        # time.sleep(DROP_TARGET_UP_TIME)
-        # drop_target_servo.angle = DROP_TARGET_DOWN_ANGLE
-        # time.sleep(DROP_TARGET_DOWN_TIME)
-        # drop_target_servo.angle = None
+        drop_target_servo.angle = None
+        time.sleep(DROP_TARGET_WAIT_TIME)
+        drop_target_servo.angle = DROP_TARGET_UP_ANGLE
+        time.sleep(DROP_TARGET_UP_TIME)
+        drop_target_servo.angle = DROP_TARGET_DOWN_ANGLE
+        time.sleep(DROP_TARGET_DOWN_TIME)
+        drop_target_servo.angle = None
