@@ -1,5 +1,7 @@
 import time
 import board
+import busio
+import digitalio
 import pwmio
 from adafruit_motor import servo
 from analogio import AnalogIn
@@ -23,6 +25,10 @@ DRAIN_DELAY_TIME = 2.5
 DRAIN_TRIGGER_TIME = 1.1
 HYPERSPACE_DELAY_TIME = 0.75
 HYPERSPACE_TRIGGER_TIME = 1.1
+
+def send_uart(str):
+    global uart
+    uart.write(bytearray(str, "utf-8"))
 
 # Leave the LED on while the pico is running
 status_led = DigitalInOut(board.GP25)
@@ -159,6 +165,9 @@ pop_bumper_fire_time = [0 for _ in range(3)]
 sol_drain_trigger_time = 0
 sol_hyperspace_trigger_time = 0
 
+# Init UART
+uart = busio.UART(board.GP8, board.GP9)
+
 # Main loop
 status_led.value = True   # Turn on status LED again now that we're running for real
 while True:
@@ -201,6 +210,7 @@ while True:
     
     # Update hyperspace solenoid
     if not ir_hyperspace.value and sol_hyperspace_trigger_time + HYPERSPACE_TRIGGER_TIME * 3 < cur_time:
+        send_uart("HYP")
         sol_hyperspace_trigger_time = cur_time + HYPERSPACE_DELAY_TIME
     if cur_time > sol_hyperspace_trigger_time and cur_time < sol_hyperspace_trigger_time + HYPERSPACE_TRIGGER_TIME:
         print("Firing hyperspace solenoid")

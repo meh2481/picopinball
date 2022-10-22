@@ -6,7 +6,7 @@ from analogio import AnalogIn
 from digitalio import DigitalInOut, Direction, Pull
 from adafruit_display_text import label
 from adafruit_st7789 import ST7789
-import adafruit_ili9341
+# import adafruit_ili9341
 import adafruit_imageload
 import time
 from adafruit_debouncer import Debouncer
@@ -90,11 +90,22 @@ def play_sound(sound_idx):
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
+    global text_area_score
+    global hyperspace_sound_list
+    global cur_hyperspace_sound
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
         data_string = ''.join([chr(b) for b in data])
-        # TODO: Command parsing
+        # Parse command
+        command_list = data_string.split()
+        command = command_list[0]
+        if command == 'HYP':
+            # Hyperspace
+            print("Hyperspace launched!")
+            increase_score(text_area_score, 100)
+            play_sound(hyperspace_sound_list[cur_hyperspace_sound])
+            cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
         print(data_string, end="")
 
 
@@ -186,6 +197,8 @@ debounced_button = Debouncer(button)
 
 # UART bus for sound controller
 uart_sound = init_uart(board.GP0, board.GP1)
+# UART bus for solenoid controller
+uart_solenoid = init_uart(board.GP4, board.GP5)
 
 # IR Sensors
 ir_sensors = [
@@ -222,14 +235,18 @@ hyperspace_sound_list = [
     HYPERSPACE_GRAVITY_WELL_SOUND
 ]
 cur_hyperspace_sound = 0
+# Play startup sound
+# play_sound(uart_sound, STARTUP_SOUND)
 while True:
     # Update debouncers
     debounced_spinner.update()
     debounced_button.update()
 
-    # Read any data waiting on the UART line
+    # Read any data waiting on the UART lines
     while uart_sound.in_waiting > 0:
         readline(uart_sound)
+    while uart_solenoid.in_waiting > 0:
+        readline(uart_solenoid)
 
     # TEMP: Test button on GP17 to play sound & increase score
     if debounced_button.fell:
