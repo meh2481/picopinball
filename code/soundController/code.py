@@ -8,10 +8,17 @@ import audiopwmio
 import time
 import countio
 from audiocore import WaveFile
+from adafruit_debouncer import Debouncer
+import random
+import neopixel
 
 # Constants
 RE_ENTRY_SOUND = 18
 PLAY_STOP_TIMER_AMOUNT = 5
+SHOOT_SOUND = 31
+SHOOT_SOUND_2 = 32
+SHOOT_SOUND_3 = 38
+SHOOT_SOUNDS = [SHOOT_SOUND, SHOOT_SOUND_2, SHOOT_SOUND_3]
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
@@ -22,6 +29,18 @@ wave_file = open("sfx/SOUND1.WAV", "rb")
 wave = WaveFile(wave_file)
 audio.play(wave)
 
+# Init board outer ring neopixels
+print("Initializing neopixels...")
+pixel_pin = board.GP1
+num_pixels = 39
+ORDER = neopixel.GRB
+pixels = neopixel.NeoPixel(
+    pixel_pin, num_pixels, brightness=0.25, auto_write=False, pixel_order=ORDER
+)
+pixels.fill((255, 250, 240))
+pixels.show()
+
+# Setup gloals
 playing = False
 playing_stop_timer = 0
 uart = None
@@ -148,6 +167,23 @@ uart_comm = init_uart_comm()
 # Init MP3 decoder for music
 decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
+# Init switches for mission select buttons
+mission_select_1 = digitalio.DigitalInOut(board.GP21)
+mission_select_1.direction = digitalio.Direction.INPUT
+mission_select_1.pull = digitalio.Pull.UP
+mission_select_2 = digitalio.DigitalInOut(board.GP20)
+mission_select_2.direction = digitalio.Direction.INPUT
+mission_select_2.pull = digitalio.Pull.UP
+mission_select_3 = digitalio.DigitalInOut(board.GP19)
+mission_select_3.direction = digitalio.Direction.INPUT
+mission_select_3.pull = digitalio.Pull.UP
+
+debounced_mission_buttons = [
+    Debouncer(mission_select_1),
+    Debouncer(mission_select_2),
+    Debouncer(mission_select_3),
+]
+
 print("Wait for startup sound done...")
 while audio.playing:
     pass
@@ -179,3 +215,12 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                     print(f'IR sensor {i} triggered')
                     play_sound(uart, RE_ENTRY_SOUND)
                     ir_sensors[i].count = 0
+                    # TODO: Send signal to display controller
+
+            # Check mission select buttons
+            for i in range(len(debounced_mission_buttons)):
+                debounced_mission_buttons[i].update()
+                if debounced_mission_buttons[i].fell:
+                    print(f'Mission select button {i} pressed')
+                    play_sound(uart, random.choice(SHOOT_SOUNDS))
+                    # TODO: Send signal to display controller
