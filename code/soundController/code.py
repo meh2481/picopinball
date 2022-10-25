@@ -6,7 +6,12 @@ import storage
 import audiomp3
 import audiopwmio
 import time
+import countio
 from audiocore import WaveFile
+
+# Constants
+RE_ENTRY_SOUND = 18
+PLAY_STOP_TIMER_AMOUNT = 5
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
@@ -20,7 +25,6 @@ audio.play(wave)
 playing = False
 playing_stop_timer = 0
 uart = None
-PLAY_STOP_TIMER_AMOUNT = 5
 
 # LED for testing
 print("Initializing LED...")
@@ -144,46 +148,34 @@ uart_comm = init_uart_comm()
 # Init MP3 decoder for music
 decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
-# Init the IR sensors
-ir1 = digitalio.DigitalInOut(board.GP28)
-ir1.direction = digitalio.Direction.INPUT
-ir1.pull = digitalio.Pull.UP
-ir2 = digitalio.DigitalInOut(board.GP3)
-ir2.direction = digitalio.Direction.INPUT
-ir2.pull = digitalio.Pull.UP
-ir3 = digitalio.DigitalInOut(board.GP4)
-ir3.direction = digitalio.Direction.INPUT
-ir3.pull = digitalio.Pull.UP
-
-ir_sensors = [ir1, ir2, ir3]
-prev_ir_values = [False, False, False]
-RE_ENTRY_SOUND = 18
-
 print("Wait for startup sound done...")
 while audio.playing:
     pass
 print("Startup sound done")
 wave.deinit()
 # TODO: Send startup signal to display controller
-print("Start main loop...")
-while True:
-    audio.play(decoder) # Loop music forever
-    while audio.playing:
-        # Print any data on the UART line from the audio fx board
-        while uart.in_waiting > 0:
-            readline(uart)
+print("Setting up IR Sensors...")
+# GP27 = left IR sensor
+# GP3 = middle IR sensor
+# GP5 = right IR sensor
+with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter(board.GP3, pull=digitalio.Pull.UP) as ir2, countio.Counter(board.GP5, pull=digitalio.Pull.UP) as ir3:
+    ir_sensors = [ir1, ir2, ir3]
+    print("Start main loop...")
+    while True:
+        audio.play(decoder) # Loop music forever
+        while audio.playing:
+            # Print any data on the UART line from the audio fx board
+            while uart.in_waiting > 0:
+                readline(uart)
 
-        while uart_comm.in_waiting > 0:
-            readline_comm(uart_comm)
-        
-        playing_stop_timer -= 1
+            while uart_comm.in_waiting > 0:
+                readline_comm(uart_comm)
 
-        # Check IR sensors
-        for i, ir in enumerate(ir_sensors):
-            if not ir.value:
-                if not prev_ir_values[i]:
-                    print(f"IR sensor {i} triggered")
+            playing_stop_timer -= 1
+
+            # Check IR sensors
+            for i in range(len(ir_sensors)):
+                if ir_sensors[i].count > 0:
+                    print(f'IR sensor {i} triggered')
                     play_sound(uart, RE_ENTRY_SOUND)
-                    prev_ir_values[i] = True
-            else:
-                prev_ir_values[i] = False
+                    ir_sensors[i].count = 0
