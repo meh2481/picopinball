@@ -249,8 +249,9 @@ while True:
             pb_debounce_counter[i] += 1
             if pb_debounce_counter[i] > POP_BUMPER_DEBOUNCE_COUNT:
                 pop_bumper_out_pins[i].value = True
-                print("Firing pop bumper #", i)
-                send_uart("PNT 100")
+                # XXX: This seems to fire multiple times rather than once
+                # print("Firing pop bumper #", i)
+                # send_uart("PNT 100")
                 pop_bumper_fire_time[i] = cur_time
         else:
             if POP_BUMPER_TRIGGER_TIME + pop_bumper_fire_time[i] < cur_time:

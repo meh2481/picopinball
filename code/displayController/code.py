@@ -81,6 +81,7 @@ def increase_score(add):
     global text_area_score
     score += add
     # Reverse because RTL idk what I'm doing
+    # TODO: Make this only update once per frame maximum
     text_area_score.text = ''.join(reversed(f"{score}"))
 
 
@@ -131,6 +132,16 @@ def readline(uart_bus):
             print("Drop target reset!")
             play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
             increase_score(1000)
+        elif command == 'BTN':
+            button_num = int(command_list[1])
+            if button_num == 0:
+                print("Select first mission")
+                # TODO: Do something with this info
+            elif button_num == 1:
+                print("Select second mission")
+            elif button_num == 2:
+                print("Select third mission")
+            increase_score(50)
         else:
             print(data_string, end="")
 
