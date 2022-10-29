@@ -125,6 +125,7 @@ def readline(uart_bus):
         elif command == 'PNT':
             # Update score
             increase_score(int(command_list[1]))
+            send_uart(uart_sound, command)  # In case there was an IR sensor skipover
         elif command == 'DTR':
             # Drop target reset
             print("Drop target reset!")
