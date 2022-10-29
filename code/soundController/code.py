@@ -37,8 +37,21 @@ ORDER = neopixel.GRB
 pixels = neopixel.NeoPixel(
     pixel_pin, num_pixels, brightness=0.25, auto_write=False, pixel_order=ORDER
 )
-pixels.fill((255, 250, 240))
-pixels.show()
+# pixels.fill((255, 250, 240))
+# pixels.show()
+
+# Start neopixel animation
+print("Starting neopixel animation...")
+from adafruit_led_animation.animation.rainbowcomet import RainbowComet
+from adafruit_led_animation import helper
+pixel_grid = helper.PixelMap.vertical_lines(
+    pixels, 19, 2, helper.horizontal_strip_gridmap(19, alternating=True)
+)
+rainbow_comet_v = RainbowComet(
+    pixel_grid, speed=.025, tail_length=7, bounce=False
+)
+while True:
+    rainbow_comet_v.animate()
 
 # Setup gloals
 playing = False
@@ -164,6 +177,12 @@ uart = init_uart()
 print("Initializing UART for other pico...")
 uart_comm = init_uart_comm()
 
+def send_uart(str):
+    """Send a message out on the comm UART bus."""
+    global uart_comm
+    write_str = f"{str}\r\n"
+    uart_comm.write(bytearray(write_str, "utf-8"))
+
 # Init MP3 decoder for music
 decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
@@ -189,8 +208,9 @@ while audio.playing:
     pass
 print("Startup sound done")
 wave.deinit()
-# TODO: Send startup signal to display controller
+send_uart("INI soundController")
 print("Setting up IR Sensors...")
+ir_scores = [100, 500, 200]  # Score values for each IR sensor
 # GP27 = left IR sensor
 # GP3 = middle IR sensor
 # GP5 = right IR sensor
@@ -200,6 +220,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
     while True:
         audio.play(decoder) # Loop music forever
         while audio.playing:
+            rainbow_comet_v.animate()
             # Print any data on the UART line from the audio fx board
             while uart.in_waiting > 0:
                 readline(uart)
@@ -215,7 +236,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                     print(f'IR sensor {i} triggered')
                     play_sound(uart, RE_ENTRY_SOUND)
                     ir_sensors[i].count = 0
-                    # TODO: Send signal to display controller
+                    send_uart(f'PNT {ir_scores[i]}')
 
             # Check mission select buttons
             for i in range(len(debounced_mission_buttons)):
@@ -223,4 +244,4 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                 if debounced_mission_buttons[i].fell:
                     print(f'Mission select button {i} pressed')
                     play_sound(uart, random.choice(SHOOT_SOUNDS))
-                    # TODO: Send signal to display controller
+                    send_uart(f"BTN {i}")  # Display controller handles the score update so we don't spam the UART bus
