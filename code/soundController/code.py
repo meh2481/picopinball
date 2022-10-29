@@ -35,7 +35,7 @@ pixel_pin = board.GP1
 num_pixels = 39
 ORDER = neopixel.GRB
 pixels = neopixel.NeoPixel(
-    pixel_pin, num_pixels, brightness=0.25, auto_write=False, pixel_order=ORDER
+    pixel_pin, num_pixels+1, brightness=0.25, auto_write=False, pixel_order=ORDER
 )
 # pixels.fill((255, 250, 240))
 # pixels.show()
@@ -45,10 +45,10 @@ print("Starting neopixel animation...")
 from adafruit_led_animation.animation.rainbowcomet import RainbowComet
 from adafruit_led_animation import helper
 pixel_grid = helper.PixelMap.vertical_lines(
-    pixels, 19, 2, helper.horizontal_strip_gridmap(19, alternating=True)
+    pixels, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
 )
 rainbow_comet_v = RainbowComet(
-    pixel_grid, speed=.025, tail_length=7, bounce=False
+    pixel_grid, speed=.035, tail_length=7, bounce=False
 )
 while True:
     rainbow_comet_v.animate()
