@@ -1,7 +1,6 @@
 import time
 import board
 import busio
-import digitalio
 import pwmio
 from adafruit_motor import servo
 from analogio import AnalogIn
@@ -154,6 +153,13 @@ hyperspace_solenoid = DigitalInOut(board.GP13)
 hyperspace_solenoid.direction = Direction.OUTPUT
 hyperspace_solenoid.value = False
 
+# Drop target servo raise states
+drop_target_start_time = 0
+DROP_TARGET_STATE_NONE = 0
+DROP_TARGET_STATE_WAIT = 1
+DROP_TARGET_STATE_UP = 2
+DROP_TARGET_STATE_DOWN = 3
+drop_target_state = DROP_TARGET_STATE_NONE
 # Init drop target PWM
 drop_target_pwm = pwmio.PWMOut(board.GP4, frequency=50)
 drop_target_servo = servo.Servo(drop_target_pwm, min_pulse=500, max_pulse=2500)
@@ -238,13 +244,18 @@ while True:
                 pb_debounce_counter[i] = 0
 
     # Update drop targets
-    if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value:
+    if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value and drop_target_state == DROP_TARGET_STATE_NONE:
         print("All switches down, raising servos")
-        # XXX: No active sleep, keep updating main loop
-        drop_target_servo.angle = None
-        time.sleep(DROP_TARGET_WAIT_TIME)
+        drop_target_state = DROP_TARGET_STATE_WAIT
+        drop_target_start_time = cur_time
+    elif drop_target_state == DROP_TARGET_STATE_WAIT and cur_time > drop_target_start_time + DROP_TARGET_WAIT_TIME:
         drop_target_servo.angle = DROP_TARGET_UP_ANGLE
-        time.sleep(DROP_TARGET_UP_TIME)
+        drop_target_state = DROP_TARGET_STATE_UP
+        drop_target_start_time = cur_time
+    elif drop_target_state == DROP_TARGET_STATE_UP and cur_time > drop_target_start_time + DROP_TARGET_UP_TIME:
         drop_target_servo.angle = DROP_TARGET_DOWN_ANGLE
-        time.sleep(DROP_TARGET_DOWN_TIME)
+        drop_target_state = DROP_TARGET_STATE_DOWN
+        drop_target_start_time = cur_time
+    elif drop_target_state == DROP_TARGET_STATE_DOWN and cur_time > drop_target_start_time + DROP_TARGET_DOWN_TIME:
         drop_target_servo.angle = None
+        drop_target_state = DROP_TARGET_STATE_NONE
