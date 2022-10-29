@@ -19,6 +19,7 @@ SHOOT_SOUND = 31
 SHOOT_SOUND_2 = 32
 SHOOT_SOUND_3 = 38
 SHOOT_SOUNDS = [SHOOT_SOUND, SHOOT_SOUND_2, SHOOT_SOUND_3]
+BALL_DRAINED_SOUND = 19
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
@@ -29,29 +30,17 @@ wave_file = open("sfx/SOUND1.WAV", "rb")
 wave = WaveFile(wave_file)
 audio.play(wave)
 
-# Init board outer ring neopixels
+# Next, init board outer ring neopixels to light up the board
 print("Initializing neopixels...")
+ball_launch_animation = True
 pixel_pin = board.GP1
 num_pixels = 39
 ORDER = neopixel.GRB
 pixels = neopixel.NeoPixel(
     pixel_pin, num_pixels+1, brightness=0.25, auto_write=False, pixel_order=ORDER
 )
-# pixels.fill((255, 250, 240))
-# pixels.show()
-
-# Start neopixel animation
-print("Starting neopixel animation...")
-from adafruit_led_animation.animation.rainbowcomet import RainbowComet
-from adafruit_led_animation import helper
-pixel_grid = helper.PixelMap.vertical_lines(
-    pixels, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
-)
-rainbow_comet_v = RainbowComet(
-    pixel_grid, speed=.035, tail_length=7, bounce=False
-)
-while True:
-    rainbow_comet_v.animate()
+pixels.fill((0, 136, 255))  # Init neopixel color is a dark blue
+pixels.show()
 
 # Setup gloals
 playing = False
@@ -82,6 +71,7 @@ def readline_comm(uart_recv):
     global uart
     global audio
     global decoder
+    global ball_launch_animation
     data = uart_recv.readline()
     if data is not None:
         # convert bytearray to string
@@ -106,6 +96,16 @@ def readline_comm(uart_recv):
             else:
                 print("Turning music off")
                 audio.stop()
+        elif command == 'DRN':
+            play_sound(uart, BALL_DRAINED_SOUND)
+            ball_launch_animation = True
+        elif command == 'PNT':
+            # In case IR sensors don't trigger, cancel the launching animation as soon as anything else happens
+            if ball_launch_animation:
+                # Cancel ball launching animation
+                ball_launch_animation = False
+                pixels.fill((255, 255, 255))
+                pixels.show()
         else:
             print(f'Unknown command: {command}')
 
@@ -216,11 +216,23 @@ ir_scores = [100, 500, 200]  # Score values for each IR sensor
 # GP5 = right IR sensor
 with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter(board.GP3, pull=digitalio.Pull.UP) as ir2, countio.Counter(board.GP5, pull=digitalio.Pull.UP) as ir3:
     ir_sensors = [ir1, ir2, ir3]
+
+    # Start neopixel animation
+    print("Starting neopixel animation...")
+    from adafruit_led_animation.animation.rainbowcomet import RainbowComet
+    from adafruit_led_animation import helper
+    pixel_grid = helper.PixelMap.vertical_lines(
+        pixels, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
+    )
+    rainbow_comet_v = RainbowComet(
+        pixel_grid, speed=.035, tail_length=7, bounce=False
+    )
     print("Start main loop...")
     while True:
         audio.play(decoder) # Loop music forever
         while audio.playing:
-            rainbow_comet_v.animate()
+            if ball_launch_animation:
+                rainbow_comet_v.animate()
             # Print any data on the UART line from the audio fx board
             while uart.in_waiting > 0:
                 readline(uart)
@@ -237,6 +249,10 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                     play_sound(uart, RE_ENTRY_SOUND)
                     ir_sensors[i].count = 0
                     send_uart(f'PNT {ir_scores[i]}')
+                    # Cancel ball launching animation
+                    ball_launch_animation = False
+                    pixels.fill((255, 255, 255))
+                    pixels.show()
 
             # Check mission select buttons
             for i in range(len(debounced_mission_buttons)):
