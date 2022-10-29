@@ -5,6 +5,7 @@ import pwmio
 from adafruit_motor import servo
 from analogio import AnalogIn
 from digitalio import DigitalInOut, Direction, Pull
+from adafruit_debouncer import Debouncer
 
 # Constants
 SLING_TRIGGER_TIME = 0.11
@@ -126,14 +127,17 @@ sling_solenoid_r.value = False
 drop_target_switch_1 = DigitalInOut(board.GP5)
 drop_target_switch_1.direction = Direction.INPUT
 drop_target_switch_1.pull = Pull.UP
-
 drop_target_switch_2 = DigitalInOut(board.GP6)
 drop_target_switch_2.direction = Direction.INPUT
 drop_target_switch_2.pull = Pull.UP
-
 drop_target_switch_3 = DigitalInOut(board.GP7)
 drop_target_switch_3.direction = Direction.INPUT
 drop_target_switch_3.pull = Pull.UP
+drop_target_debouncers = [
+    Debouncer(drop_target_switch_1),
+    Debouncer(drop_target_switch_2),
+    Debouncer(drop_target_switch_3),
+]
 
 # Init IR sensors
 ir_drain = DigitalInOut(board.GP10)
@@ -174,12 +178,20 @@ sol_hyperspace_trigger_time = 0
 # Init UART
 uart = busio.UART(board.GP8, board.GP9)
 
+# Reset drop targets
+drop_target_state = DROP_TARGET_STATE_WAIT
+drop_target_start_time = time.monotonic()
+
+send_uart("INI solenoidDriver")  # Let the display controller know we're ready
+
 # Main loop
 status_led.value = True   # Turn on status LED again now that we're running for real
+print("Starting main loop")
 while True:
     cur_time = time.monotonic()
 
     # Update flippers
+    # TODO: PWM the solenoids after a certain period of time to make them last longer
     if button_l.value:
         solenoid_l.value = True
     else:
@@ -194,9 +206,11 @@ while True:
     if slingshot_switch_l.value and cur_time - sling_l_trigger_time > SLING_TRIGGER_TIME:
         sling_l_trigger_time = cur_time + SLING_TRIGGER_TIME
         sling_solenoid_l.value = True
+        send_uart("PNT 75")
     if sling_switch_r.value and cur_time > sling_r_trigger_time + SLING_TRIGGER_TIME:
         sling_r_trigger_time = cur_time + SLING_TRIGGER_TIME
         sling_solenoid_r.value = True
+        send_uart("PNT 75")
 
     # Turn off slingshots after a delay
     if cur_time > sling_l_trigger_time:
@@ -236,6 +250,7 @@ while True:
             if pb_debounce_counter[i] > POP_BUMPER_DEBOUNCE_COUNT:
                 pop_bumper_out_pins[i].value = True
                 print("Firing pop bumper #", i)
+                send_uart("PNT 100")
                 pop_bumper_fire_time[i] = cur_time
         else:
             if POP_BUMPER_TRIGGER_TIME + pop_bumper_fire_time[i] < cur_time:
@@ -245,8 +260,14 @@ while True:
                 pb_debounce_counter[i] = 0
 
     # Update drop targets
+    for debouncer in drop_target_debouncers:
+        debouncer.update()  # Update debouncers
+        if debouncer.rose:
+            print("Drop target down")
+            send_uart("PNT 200")
     if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value and drop_target_state == DROP_TARGET_STATE_NONE:
         print("All switches down, raising servos")
+        send_uart("DTR")
         drop_target_state = DROP_TARGET_STATE_WAIT
         drop_target_start_time = cur_time
     elif drop_target_state == DROP_TARGET_STATE_WAIT and cur_time > drop_target_start_time + DROP_TARGET_WAIT_TIME:

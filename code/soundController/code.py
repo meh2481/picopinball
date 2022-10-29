@@ -93,9 +93,11 @@ def readline_comm(uart_recv):
             if on_off.upper() == 'ON':
                 print("Turning music on")
                 audio.play(decoder)
-            else:
+            elif on_off.upper() == 'OFF':
                 print("Turning music off")
                 audio.stop()
+            else:
+                print("Invalid MUS command")
         elif command == 'DRN':
             play_sound(uart, BALL_DRAINED_SOUND)
             ball_launch_animation = True

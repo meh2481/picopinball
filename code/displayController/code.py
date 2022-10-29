@@ -60,6 +60,8 @@ FLIPPER_SOUND_4 = 40
 TILT_SOUND = 41
 SPINNER_SOUND = 42
 
+DROP_TARGET_RESET_SOUNDS = [DROP_TARGET_RESET_SOUND, DROP_TARGET_RESET_SOUND_2, DROP_TARGET_RESET_SOUND_3]
+
 # Other constants
 SERVO_TIMEOUT = 1.0
 
@@ -109,8 +111,9 @@ def readline(uart_bus):
         command = command_list[0]
         if command == 'HYP':
             # Hyperspace
-            print("Hyperspace launched!")
-            increase_score(100)
+            print(f"Hyperspace launched {cur_hyperspace_sound + 1}")
+            # TODO: Decrease cur_hyperspace_sound after a delay & turn off lights
+            increase_score((cur_hyperspace_sound + 1) * 100)
             play_sound(hyperspace_sound_list[cur_hyperspace_sound])
             cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
         elif command == 'DRN':
@@ -122,6 +125,11 @@ def readline(uart_bus):
         elif command == 'PNT':
             # Update score
             increase_score(int(command_list[1]))
+        elif command == 'DTR':
+            # Drop target reset
+            print("Drop target reset!")
+            play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
+            increase_score(1000)
         else:
             print(data_string, end="")
 
@@ -271,6 +279,7 @@ while True:
         cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
 
     # Update score and play sounds for IR sensor being triggered
+    # TODO: Remove IR sensors from this board, add new game button
     for i in range(len(ir_sensors)):
         sensor = ir_sensors[i]
         sensor_state = ir_sensor_states[i]
@@ -283,6 +292,7 @@ while True:
             ir_sensor_states[i] = False
 
     # Spinner
+    # TODO: Remove
     if debounced_spinner.rose or debounced_spinner.fell:
         increase_score(10)
 
