@@ -73,12 +73,13 @@ led.direction = Direction.OUTPUT
 led.value = True
 
 
-def increase_score(text_area, add):
+def increase_score(add):
     """Update the score on the screen."""
     global score
+    global text_area_score
     score += add
     # Reverse because RTL idk what I'm doing
-    text_area.text = ''.join(reversed(f"{score}"))
+    text_area_score.text = ''.join(reversed(f"{score}"))
 
 
 def play_sound(sound_idx):
@@ -88,11 +89,17 @@ def play_sound(sound_idx):
     uart_sound.write(bytearray(snd_str, "utf-8"))
 
 
+def send_uart(uart, str):
+    """Send a message out on a UART bus."""
+    write_str = f"{str}\r\n"
+    uart.write(bytearray(write_str, "utf-8"))
+
+
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
-    global text_area_score
     global hyperspace_sound_list
     global cur_hyperspace_sound
+    global uart_sound
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -103,10 +110,20 @@ def readline(uart_bus):
         if command == 'HYP':
             # Hyperspace
             print("Hyperspace launched!")
-            increase_score(text_area_score, 100)
+            increase_score(100)
             play_sound(hyperspace_sound_list[cur_hyperspace_sound])
             cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
-        print(data_string, end="")
+        elif command == 'DRN':
+            # Ball drained
+            print("Ball drained!")
+            # Relay to sound board
+            send_uart(uart_sound, command)
+            # TODO: Prevent flippers and update score and such
+        elif command == 'PNT':
+            # Update score
+            increase_score(int(command_list[1]))
+        else:
+            print(data_string, end="")
 
 
 def init_uart(tx_pin, rx_pin):
@@ -235,8 +252,6 @@ hyperspace_sound_list = [
     HYPERSPACE_GRAVITY_WELL_SOUND
 ]
 cur_hyperspace_sound = 0
-# Play startup sound
-# play_sound(uart_sound, STARTUP_SOUND)
 while True:
     # Update debouncers
     debounced_spinner.update()
@@ -251,7 +266,7 @@ while True:
     # TEMP: Test button on GP17 to play sound & increase score
     if debounced_button.fell:
         print("Test button pressed")
-        increase_score(text_area_score, 100)
+        increase_score(100)
         play_sound(hyperspace_sound_list[cur_hyperspace_sound])
         cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
 
@@ -262,14 +277,14 @@ while True:
         if not sensor.value and not sensor_state:
             ir_sensor_states[i] = True
             print("IR sensor triggered")
-            increase_score(text_area_score, 100)
+            increase_score(100)
             play_sound(RE_ENTRY_SOUND)
         elif sensor.value:
             ir_sensor_states[i] = False
 
     # Spinner
     if debounced_spinner.rose or debounced_spinner.fell:
-        increase_score(text_area_score, 10)
+        increase_score(10)
 
     # LED blinky test
     for idx, pin_ in enumerate(pins):

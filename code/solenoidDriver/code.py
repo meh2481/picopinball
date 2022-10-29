@@ -27,7 +27,7 @@ HYPERSPACE_TRIGGER_TIME = 1.1
 
 def send_uart(str):
     global uart
-    uart.write(bytearray(str, "utf-8"))
+    uart.write(bytearray(f"{str}\r\n", "utf-8"))
 
 # Leave the LED on while the pico is running
 status_led = DigitalInOut(board.GP25)
@@ -207,6 +207,7 @@ while True:
     # Update drain solenoid
     if not ir_drain.value:
         print("drain sensor")
+        send_uart("DRN")
         sol_drain_trigger_time = cur_time + DRAIN_DELAY_TIME
     if cur_time > sol_drain_trigger_time and cur_time < sol_drain_trigger_time + DRAIN_TRIGGER_TIME:
         print("Firing reload solenoid")
