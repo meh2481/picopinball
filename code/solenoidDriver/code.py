@@ -10,6 +10,7 @@ from adafruit_debouncer import Debouncer
 # Constants
 SLING_TRIGGER_TIME = 0.11
 POP_BUMPER_TRIGGER_TIME = 0.125
+POP_BUMPER_DEBOUNCE_TIME = 0.125
 NUM_POP_BUMPER_SAMPLES = 20
 POP_BUMPER_SENSITIVITY = 25
 POP_BUMPER_DEBOUNCE_COUNT = 20
@@ -89,7 +90,9 @@ pop_bumper_3_out.value = False
 pop_bumper_out_pins = [pop_bumper_1_out, pop_bumper_2_out, pop_bumper_3_out]
 pop_bumper_signals = [False, False, False]
 pop_bumper_signals_debounced = [
-    Debouncer(lambda : pop_bumper_signals[i]) for i in range(3)
+    Debouncer(lambda : pop_bumper_signals[0], interval=POP_BUMPER_DEBOUNCE_TIME),
+    Debouncer(lambda : pop_bumper_signals[1], interval=POP_BUMPER_DEBOUNCE_TIME),
+    Debouncer(lambda : pop_bumper_signals[2], interval=POP_BUMPER_DEBOUNCE_TIME),
 ]
 
 # Init L/R flipper buttons

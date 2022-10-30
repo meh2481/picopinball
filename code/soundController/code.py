@@ -35,7 +35,7 @@ print("Initializing neopixels...")
 ball_launch_animation = True
 drained_time = 0
 currently_drained = False
-DRAINED_SOUND_LEN = 1.823
+DRAINED_SOUND_LEN = 2.5
 pixel_pin = board.GP1
 num_pixels = 39
 ORDER = neopixel.GRB
@@ -221,6 +221,9 @@ while audio.playing:
 print("Startup sound done")
 wave.deinit()
 send_uart("INI soundController")
+# Clear out pixels
+pixels.fill((0, 0, 0))
+pixels.show()
 print("Setting up IR Sensors...")
 ir_scores = [100, 500, 200]  # Score values for each IR sensor
 # GP27 = left IR sensor
@@ -251,6 +254,9 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
                 currently_drained = False
                 ball_launch_animation = True
+                pixels.fill((0, 0, 0))
+                pixels.show()
+                rainbow_comet_v.reset()
 
             # Print any data on the UART line from the audio fx board
             while uart.in_waiting > 0:
