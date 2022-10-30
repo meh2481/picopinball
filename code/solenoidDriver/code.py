@@ -25,6 +25,7 @@ DRAIN_DELAY_TIME = 2.5
 DRAIN_TRIGGER_TIME = 1.1
 HYPERSPACE_DELAY_TIME = 0.75
 HYPERSPACE_TRIGGER_TIME = 1.1
+DRAIN_SIGNAL_DEBOUNCE_TIME = 5.0
 
 def send_uart(str):
     global uart
@@ -86,6 +87,10 @@ pop_bumper_3_out.direction = Direction.OUTPUT
 pop_bumper_3_out.value = False
 
 pop_bumper_out_pins = [pop_bumper_1_out, pop_bumper_2_out, pop_bumper_3_out]
+pop_bumper_signals = [False, False, False]
+pop_bumper_signals_debounced = [
+    Debouncer(lambda : pop_bumper_signals[i]) for i in range(3)
+]
 
 # Init L/R flipper buttons
 button_r = DigitalInOut(board.GP18)
@@ -173,6 +178,7 @@ sling_l_trigger_time = 0
 sling_r_trigger_time = 0
 pop_bumper_fire_time = [0 for _ in range(3)]
 sol_drain_trigger_time = 0
+drain_debounce_time = 0
 sol_hyperspace_trigger_time = 0
 
 # Init UART
@@ -221,8 +227,10 @@ while True:
     # Update drain solenoid
     if not ir_drain.value:
         print("drain sensor")
-        # XXX: Only do this once per drain event
-        send_uart("DRN")
+        # Only do this once per drain event, by waiting 5 secs after the last drain
+        if cur_time - drain_debounce_time > DRAIN_SIGNAL_DEBOUNCE_TIME:
+            drain_debounce_time = cur_time
+            send_uart("DRN")
         sol_drain_trigger_time = cur_time + DRAIN_DELAY_TIME
     if cur_time > sol_drain_trigger_time and cur_time < sol_drain_trigger_time + DRAIN_TRIGGER_TIME:
         print("Firing reload solenoid")
@@ -250,16 +258,19 @@ while True:
             pb_debounce_counter[i] += 1
             if pb_debounce_counter[i] > POP_BUMPER_DEBOUNCE_COUNT:
                 pop_bumper_out_pins[i].value = True
-                # XXX: This seems to fire multiple times rather than once
-                print("Firing pop bumper #", i)
-                send_uart("PNT 100")
+                pop_bumper_signals[i] = False
                 pop_bumper_fire_time[i] = cur_time
         else:
             if POP_BUMPER_TRIGGER_TIME + pop_bumper_fire_time[i] < cur_time:
                 pop_bumper_out_pins[i].value = False
+                pop_bumper_signals[i] = True
             pb_debounce_counter[i] -= POP_BUMPER_DEBOUNCE_DECREMENT
             if pb_debounce_counter[i] < 0:
                 pb_debounce_counter[i] = 0
+        pop_bumper_signals_debounced[i].update()
+        if pop_bumper_signals_debounced[i].fell:
+            print("Firing pop bumper #", i)
+            send_uart("PNT 100")
 
     # Update drop targets
     for debouncer in drop_target_debouncers:

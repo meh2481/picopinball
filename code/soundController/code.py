@@ -33,6 +33,9 @@ audio.play(wave)
 # Next, init board outer ring neopixels to light up the board
 print("Initializing neopixels...")
 ball_launch_animation = True
+drained_time = 0
+currently_drained = False
+DRAINED_SOUND_LEN = 1.823
 pixel_pin = board.GP1
 num_pixels = 39
 ORDER = neopixel.GRB
@@ -72,6 +75,9 @@ def readline_comm(uart_recv):
     global audio
     global decoder
     global ball_launch_animation
+    global pixels
+    global drained_time
+    global currently_drained
     data = uart_recv.readline()
     if data is not None:
         # convert bytearray to string
@@ -100,8 +106,11 @@ def readline_comm(uart_recv):
                 print("Invalid MUS command")
         elif command == 'DRN':
             play_sound(uart, BALL_DRAINED_SOUND)
-            # TODO: Delay before reset animation
-            ball_launch_animation = True
+            pixels.fill((176, 13, 0))  # Drain neopixel color is a dark red
+            pixels.show()
+            # Delay and then reset animation
+            drained_time = time.monotonic()
+            currently_drained = True
         elif command == 'PNT':
             # In case IR sensors don't trigger, cancel the launching animation as soon as anything else happens
             if ball_launch_animation:
@@ -234,8 +243,15 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
     while True:
         audio.play(decoder) # Loop music forever
         while audio.playing:
+            cur_time = time.monotonic()
+
+            # Update pixel animations
             if ball_launch_animation:
                 rainbow_comet_v.animate()
+            if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
+                currently_drained = False
+                ball_launch_animation = True
+
             # Print any data on the UART line from the audio fx board
             while uart.in_waiting > 0:
                 readline(uart)
@@ -253,9 +269,10 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                     ir_sensors[i].count = 0
                     send_uart(f'PNT {ir_scores[i]}')
                     # Cancel ball launching animation
-                    ball_launch_animation = False
-                    pixels.fill((255, 255, 255))
-                    pixels.show()
+                    if ball_launch_animation:
+                        ball_launch_animation = False
+                        pixels.fill((255, 255, 255))
+                        pixels.show()
 
             # Check mission select buttons
             for i in range(len(debounced_mission_buttons)):
