@@ -101,7 +101,7 @@ def readline_comm(uart_recv):
         elif command == 'DRN':
             play_sound(uart, BALL_DRAINED_SOUND)
             # TODO: Delay before reset animation
-            # ball_launch_animation = True
+            ball_launch_animation = True
         elif command == 'PNT':
             # In case IR sensors don't trigger, cancel the launching animation as soon as anything else happens
             if ball_launch_animation:

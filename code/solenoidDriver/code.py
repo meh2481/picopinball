@@ -221,6 +221,7 @@ while True:
     # Update drain solenoid
     if not ir_drain.value:
         print("drain sensor")
+        # XXX: Only do this once per drain event
         send_uart("DRN")
         sol_drain_trigger_time = cur_time + DRAIN_DELAY_TIME
     if cur_time > sol_drain_trigger_time and cur_time < sol_drain_trigger_time + DRAIN_TRIGGER_TIME:
@@ -250,8 +251,8 @@ while True:
             if pb_debounce_counter[i] > POP_BUMPER_DEBOUNCE_COUNT:
                 pop_bumper_out_pins[i].value = True
                 # XXX: This seems to fire multiple times rather than once
-                # print("Firing pop bumper #", i)
-                # send_uart("PNT 100")
+                print("Firing pop bumper #", i)
+                send_uart("PNT 100")
                 pop_bumper_fire_time[i] = cur_time
         else:
             if POP_BUMPER_TRIGGER_TIME + pop_bumper_fire_time[i] < cur_time:
