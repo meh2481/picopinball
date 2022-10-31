@@ -165,14 +165,24 @@ def rand_ship_angle(cur_angle):
 
 
 # Setup I2C for the I/O expander
-pins = [0, 11, 10, 9, 8]
 i2c = busio.I2C(scl=board.GP21, sda=board.GP20)
-aw = adafruit_aw9523.AW9523(i2c)
-print("Found AW9523")
+# First one has neither jumper bridged
+aw1 = adafruit_aw9523.AW9523(i2c)
+print("Found AW9523 1")
+# Second one has A0 jumper bridged
+aw2 = adafruit_aw9523.AW9523(i2c, address=0x59)
+print("Found AW9523 2")
+# Third one has A1 jumper bridged
+aw3 = adafruit_aw9523.AW9523(i2c, address=0x5A)
+print("Found AW9523 3")
 
 # Set all pins to outputs and LED (const current) mode
-aw.LED_modes = 0xFFFF
-aw.directions = 0xFFFF
+aw1.LED_modes = 0xFFFF
+aw1.directions = 0xFFFF
+aw2.LED_modes = 0xFFFF
+aw2.directions = 0xFFFF
+aw3.LED_modes = 0xFFFF
+aw3.directions = 0xFFFF
 
 # Setup SPI bus
 spi = busio.SPI(board.GP14, MOSI=board.GP15, MISO=board.GP12)
@@ -261,8 +271,9 @@ servo_shutoff_time = time.monotonic() + SERVO_TIMEOUT
 score = 0
 ball = 1
 n = 0
+pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The order of the pins on the I2C expander
 NUM_PINS = len(pins)
-PIN_DELAY = 1000
+PIN_DELAY = 750
 TOTAL_CYCLE = NUM_PINS * PIN_DELAY
 hyperspace_sound_list = [
     HYPERSPACE_LAUNCH_SOUND,
@@ -309,11 +320,15 @@ while True:
         increase_score(10)
 
     # LED blinky test
+    # TODO: Remove
     for idx, pin_ in enumerate(pins):
         pin_val = 0
         if n > idx * PIN_DELAY and n < (idx + 1) * PIN_DELAY:
+            # First ship laser diode is dim for some reason, so set second one dim too
             pin_val = 140 if idx == 0 else 255
-        aw.set_constant_current(pin_, pin_val)
+        aw1.set_constant_current(pin_, pin_val)
+        aw2.set_constant_current(pin_, 255 if pin_val > 0 else 0)
+        aw3.set_constant_current(pin_, 255 if pin_val > 0 else 0)
     n = (n + 5) % TOTAL_CYCLE
 
     # Update ship servo
