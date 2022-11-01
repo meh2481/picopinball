@@ -23,9 +23,9 @@ DROP_TARGET_DOWN_ANGLE = 15
 DROP_TARGET_DOWN_TIME = 0.25
 
 DRAIN_DELAY_TIME = 2.5
-DRAIN_TRIGGER_TIME = 0.25
+DRAIN_TRIGGER_TIME = 0.125
 HYPERSPACE_DELAY_TIME = 0.75
-HYPERSPACE_TRIGGER_TIME = 0.25
+HYPERSPACE_TRIGGER_TIME = 0.125
 DRAIN_SIGNAL_DEBOUNCE_TIME = 5.0
 
 def send_uart(str):
@@ -212,6 +212,7 @@ uart = busio.UART(board.GP8, board.GP9)
 drop_target_state = DROP_TARGET_STATE_WAIT
 drop_target_start_time = time.monotonic()
 
+time.sleep(2.0)
 send_uart("INI solenoidDriver")  # Let the display controller know we're ready
 
 # Main loop
