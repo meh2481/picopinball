@@ -26,7 +26,7 @@ SLINGSHOT_SOUND = 7
 LIGHT_GROUP_LIT_SOUND = 8
 CENTER_POST_GONE_SOUND = 9
 FLIPPER_SOUND_2 = 10
-DROP_TARGET_RESET_SOUND = 11
+DROP_TARGET_RESET_SOUND_DUMB = 11
 WOOP_UP_SOUND = 12
 WOOP_DOWN_SOUND = 13
 DROP_TARGET_RESET_SOUND_2 = 14
@@ -59,7 +59,7 @@ FLIPPER_SOUND_4 = 40
 TILT_SOUND = 41
 SPINNER_SOUND = 42
 
-DROP_TARGET_RESET_SOUNDS = [DROP_TARGET_RESET_SOUND, DROP_TARGET_RESET_SOUND_2, DROP_TARGET_RESET_SOUND_3]
+DROP_TARGET_RESET_SOUNDS = [DROP_TARGET_RESET_SOUND_2, DROP_TARGET_RESET_SOUND_3]
 
 # Other constants
 SERVO_TIMEOUT = 1.0
@@ -99,15 +99,24 @@ def send_uart(uart, str):
 sound_controller_initialized = False
 solenoid_driver_initialized = False
 startup_anim = True
+drop_target_reset_sound_timer = None
+DROP_TARGET_RESET_SOUND_DELAY = 0.75
+HYPERSPACE_DECREASE_TIMER = 60  # Delay to decrease the hyperspace bonus
+cur_hyperspace_trigger_timer = 0
+ball_drained_timer = None
+BALL_DRAIN_DELAY = 2.5
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
     global hyperspace_sound_list
-    global cur_hyperspace_sound
+    global cur_hyperspace_value
     global uart_sound
     global solenoid_driver_initialized
     global sound_controller_initialized
     global startup_anim
+    global drop_target_reset_sound_timer
+    global cur_hyperspace_trigger_timer
+    global ball_drained_timer
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -117,17 +126,19 @@ def readline(uart_bus):
         command = command_list[0]
         if command == 'HYP':
             # Hyperspace
-            print(f"Hyperspace launched {cur_hyperspace_sound + 1}")
-            # TODO: Decrease cur_hyperspace_sound after a delay & turn off lights
-            increase_score((cur_hyperspace_sound + 1) * 100)
-            play_sound(hyperspace_sound_list[cur_hyperspace_sound])
-            cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
+            print(f"Hyperspace launched {cur_hyperspace_value + 1}")
+            increase_score((cur_hyperspace_value + 1) * 100)
+            play_sound(hyperspace_sound_list[cur_hyperspace_value])
+            cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
+            cur_hyperspace_trigger_timer = time.monotonic()
         elif command == 'DRN':
             # Ball drained
             print("Ball drained!")
             # Relay to sound board
             send_uart(uart_sound, command)
-            # TODO: Prevent flippers and update score and such
+            # Wait for a bit before reloading
+            ball_drained_timer = time.monotonic()
+            # TODO: Crash bonus or something
         elif command == 'PNT':
             # Update score
             increase_score(int(command_list[1]))
@@ -135,8 +146,8 @@ def readline(uart_bus):
         elif command == 'DTR':
             # Drop target reset
             print("Drop target reset!")
-            # TODO: Delay before playing sound. Also remove the dumb sound from this list
-            play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
+            # Delay before playing sound
+            drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
             increase_score(1000)
         elif command == 'BTN':
             button_num = int(command_list[1])
@@ -158,7 +169,10 @@ def readline(uart_bus):
                 sound_controller_initialized = True
             if solenoid_driver_initialized and sound_controller_initialized:
                 print("All boards initialized")
+                # Stop animation
                 startup_anim = False
+                # Reload the ball
+                send_uart(uart_solenoid, "RLD")
         else:
             print(data_string, end="")
 
@@ -256,19 +270,11 @@ uart_sound = init_uart(board.GP0, board.GP1)
 # UART bus for solenoid controller
 uart_solenoid = init_uart(board.GP4, board.GP5)
 
-# IR Sensors
-ir_sensors = [
-    DigitalInOut(board.GP2),
-    DigitalInOut(board.GP3),
-    DigitalInOut(board.GP6),
-    DigitalInOut(board.GP7),
-]
-
-for sensor in ir_sensors:
-    sensor.direction = Direction.INPUT
-    sensor.pull = Pull.UP
-
-ir_sensor_states = [False, False, False, False]
+# New game button
+new_game_button = DigitalInOut(board.GP7)
+new_game_button.direction = Direction.INPUT
+new_game_button.pull = Pull.UP
+new_game_button_debouncer = Debouncer(new_game_button)
 
 # Ship servo
 servo_pwm = pwmio.PWMOut(board.GP16, frequency=50)
@@ -280,7 +286,7 @@ servo_shutoff_time = time.monotonic() + SERVO_TIMEOUT
 score = 0
 ball = 1
 n = 0
-pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The order of the pins on the I2C expander
+pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expander
 NUM_PINS = len(pins)
 PIN_DELAY = 750
 TOTAL_CYCLE = NUM_PINS * PIN_DELAY
@@ -291,7 +297,7 @@ hyperspace_sound_list = [
     HYPERSPACE_EXTRA_BALL_SOUND,
     HYPERSPACE_GRAVITY_WELL_SOUND
 ]
-cur_hyperspace_sound = 0
+cur_hyperspace_value = 0
 startup_anim_timer = time.monotonic()
 STARTUP_ANIM_LED_BLINK_TIME = 0.25
 while True:
@@ -302,18 +308,7 @@ while True:
     while uart_solenoid.in_waiting > 0:
         readline(uart_solenoid)
 
-    # Update score and play sounds for IR sensor being triggered
-    # TODO: Remove IR sensors from this board, add new game button
-    for i in range(len(ir_sensors)):
-        sensor = ir_sensors[i]
-        sensor_state = ir_sensor_states[i]
-        if not sensor.value and not sensor_state:
-            ir_sensor_states[i] = True
-            print("IR sensor triggered")
-            increase_score(100)
-            play_sound(RE_ENTRY_SOUND)
-        elif sensor.value:
-            ir_sensor_states[i] = False
+    # TODO: add new game button
 
     # Blink LEDs randomly during startup animation
     if startup_anim:
@@ -347,3 +342,31 @@ while True:
         print("Turn off ship servo")
         ship_servo.angle = None
         servo_shutoff_time = rand_servo_time + SERVO_TIMEOUT
+    
+    if drop_target_reset_sound_timer and cur_time > drop_target_reset_sound_timer:
+        drop_target_reset_sound_timer = None
+        play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
+    
+    # Decrease cur_hyperspace_value after a delay & turn off lights
+    if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
+        cur_hyperspace_value -= 1
+        cur_hyperspace_trigger_timer = cur_time
+        if cur_hyperspace_value < 0:
+            cur_hyperspace_value = 0
+        # TODO: Something here about decreasing lights and such
+        #     hyperspace_lights_off()
+        # else:
+        #     hyperspace_lights_on(cur_hyperspace_value)
+    
+    # Reload the ball if we should
+    if ball_drained_timer and cur_time > ball_drained_timer + BALL_DRAIN_DELAY:
+        ball_drained_timer = None
+        send_uart(uart_solenoid, "RLD")
+        cur_hyperspace_value = 0
+        # TODO: Some other reset things
+    
+    # TODO: Start new game and such
+    new_game_button_debouncer.update()
+    if new_game_button_debouncer.fell:
+        print("New game button pressed; manual reload")
+        send_uart(uart_solenoid, "RLD")

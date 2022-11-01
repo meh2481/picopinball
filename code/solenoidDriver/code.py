@@ -23,14 +23,35 @@ DROP_TARGET_DOWN_ANGLE = 15
 DROP_TARGET_DOWN_TIME = 0.25
 
 DRAIN_DELAY_TIME = 2.5
-DRAIN_TRIGGER_TIME = 1.1
+DRAIN_TRIGGER_TIME = 0.25
 HYPERSPACE_DELAY_TIME = 0.75
-HYPERSPACE_TRIGGER_TIME = 1.1
+HYPERSPACE_TRIGGER_TIME = 0.25
 DRAIN_SIGNAL_DEBOUNCE_TIME = 5.0
 
 def send_uart(str):
     global uart
     uart.write(bytearray(f"{str}\r\n", "utf-8"))
+
+reload_solenoid_timer = None
+
+def readline():
+    """Read a line from the UART bus and print it to console."""
+    global uart
+    global reload_solenoid
+    global reload_solenoid_timer
+    data = uart.readline()
+    if data is not None:
+        # convert bytearray to string
+        data_string = ''.join([chr(b) for b in data])
+        command_list = data_string.split()
+        command = command_list[0]
+        if command == 'RLD':
+            # Fire the reload solenoid
+            reload_solenoid.value = True
+            reload_solenoid_timer = time.monotonic()
+        # TODO: Reset game and other commands
+        else:
+            print(f'Unknown command: {command}')
 
 # Leave the LED on while the pico is running
 status_led = DigitalInOut(board.GP25)
@@ -228,18 +249,14 @@ while True:
         sling_solenoid_r.value = False
     
     # Update drain solenoid
-    if not ir_drain.value:
-        print("drain sensor")
+    if not ir_drain.value and cur_time - drain_debounce_time > DRAIN_SIGNAL_DEBOUNCE_TIME:
         # Only do this once per drain event, by waiting 5 secs after the last drain
-        if cur_time - drain_debounce_time > DRAIN_SIGNAL_DEBOUNCE_TIME:
-            drain_debounce_time = cur_time
-            send_uart("DRN")
-        sol_drain_trigger_time = cur_time + DRAIN_DELAY_TIME
-    if cur_time > sol_drain_trigger_time and cur_time < sol_drain_trigger_time + DRAIN_TRIGGER_TIME:
-        print("Firing reload solenoid")
-        reload_solenoid.value = True
-    else:
+        print("drain sensor")
+        drain_debounce_time = cur_time
+        send_uart("DRN")
+    if reload_solenoid_timer and cur_time - reload_solenoid_timer > DRAIN_TRIGGER_TIME:
         reload_solenoid.value = False
+        reload_solenoid_timer = None
     
     # Update hyperspace solenoid
     if not ir_hyperspace.value and sol_hyperspace_trigger_time + HYPERSPACE_TRIGGER_TIME * 3 < cur_time:
@@ -297,3 +314,6 @@ while True:
     elif drop_target_state == DROP_TARGET_STATE_DOWN and cur_time > drop_target_start_time + DROP_TARGET_DOWN_TIME:
         drop_target_servo.angle = None
         drop_target_state = DROP_TARGET_STATE_NONE
+    
+    while uart.in_waiting > 0:
+        readline()

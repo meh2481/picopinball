@@ -11,6 +11,8 @@ from audiocore import WaveFile
 from adafruit_debouncer import Debouncer
 import random
 import neopixel
+from adafruit_led_animation.animation.rainbowcomet import RainbowComet
+from adafruit_led_animation import helper
 
 # Constants
 RE_ENTRY_SOUND = 18
@@ -196,6 +198,7 @@ def send_uart(str):
     uart_comm.write(bytearray(write_str, "utf-8"))
 
 # Init MP3 decoder for music
+# TODO: Swap this over to WAV for less decoding processor overhead
 decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
 # Init switches for mission select buttons
@@ -234,8 +237,6 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
 
     # Start neopixel animation
     print("Starting neopixel animation...")
-    from adafruit_led_animation.animation.rainbowcomet import RainbowComet
-    from adafruit_led_animation import helper
     pixel_grid = helper.PixelMap.vertical_lines(
         pixels, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
     )
