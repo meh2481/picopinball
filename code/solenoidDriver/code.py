@@ -12,7 +12,7 @@ SLING_TRIGGER_TIME = 0.11
 POP_BUMPER_TRIGGER_TIME = 0.125
 POP_BUMPER_DEBOUNCE_TIME = 0.125
 NUM_POP_BUMPER_SAMPLES = 20
-POP_BUMPER_SENSITIVITY = 25
+POP_BUMPER_SENSITIVITY = 20
 POP_BUMPER_DEBOUNCE_COUNT = 20
 POP_BUMPER_CALIBRATE_COUNT = 10000
 POP_BUMPER_DEBOUNCE_DECREMENT = 10
@@ -44,14 +44,15 @@ def readline():
         # convert bytearray to string
         data_string = ''.join([chr(b) for b in data])
         command_list = data_string.split()
-        command = command_list[0]
-        if command == 'RLD':
-            # Fire the reload solenoid
-            reload_solenoid.value = True
-            reload_solenoid_timer = time.monotonic()
-        # TODO: Reset game and other commands
-        else:
-            print(f'Unknown command: {command}')
+        if len(command_list) > 0:
+            command = command_list[0]
+            if command == 'RLD':
+                # Fire the reload solenoid
+                reload_solenoid.value = True
+                reload_solenoid_timer = time.monotonic()
+            # TODO: Reset game and other commands
+            else:
+                print(f'Unknown command: {command}')
 
 # Leave the LED on while the pico is running
 status_led = DigitalInOut(board.GP25)
@@ -225,23 +226,27 @@ while True:
     # TODO: PWM the solenoids after a certain period of time to make them last longer
     if button_l.value:
         solenoid_l.value = True
+        send_uart("FLU")
     else:
         solenoid_l.value = False
+        send_uart("FLD")
     if button_r.value:
         solenoid_r.value = True
+        send_uart("FRU")
     else:
         solenoid_r.value = False
+        send_uart("FRD")
 
     # Update slingshots
     # Slingshots only launch after a delay since last launch, to avoid chatter
     if slingshot_switch_l.value and cur_time - sling_l_trigger_time > SLING_TRIGGER_TIME:
         sling_l_trigger_time = cur_time + SLING_TRIGGER_TIME
         sling_solenoid_l.value = True
-        send_uart("PNT 75")
+        send_uart("SLG L")
     if sling_switch_r.value and cur_time > sling_r_trigger_time + SLING_TRIGGER_TIME:
         sling_r_trigger_time = cur_time + SLING_TRIGGER_TIME
         sling_solenoid_r.value = True
-        send_uart("PNT 75")
+        send_uart("SLG R")
 
     # Turn off slingshots after a delay
     if cur_time > sling_l_trigger_time:
@@ -291,14 +296,14 @@ while True:
         pop_bumper_signals_debounced[i].update()
         if pop_bumper_signals_debounced[i].fell:
             print("Firing pop bumper #", i)
-            send_uart("PNT 100")
+            send_uart("PB " + str(i+1))
 
     # Update drop targets
-    for debouncer in drop_target_debouncers:
-        debouncer.update()  # Update debouncers
-        if debouncer.rose:
+    for i in range(len(drop_target_debouncers)):
+        drop_target_debouncers[i].update()  # Update debouncers
+        if drop_target_debouncers[i].rose:
             print("Drop target down")
-            send_uart("PNT 200")
+            send_uart("DT " + str(i + 1))
     if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value and drop_target_state == DROP_TARGET_STATE_NONE:
         print("All switches down, raising servos")
         send_uart("DTR")

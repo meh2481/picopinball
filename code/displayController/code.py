@@ -78,10 +78,12 @@ def increase_score(add):
     """Update the score on the screen."""
     global score
     global text_area_score
+    global uart_sound
     score += add
     # Reverse because RTL idk what I'm doing
     # TODO: Make this only update once per frame maximum
     text_area_score.text = ''.join(reversed(f"{score}"))
+    send_uart(uart_sound, 'PNT')  # In case there was an IR sensor skipover
 
 
 def play_sound(sound_idx):
@@ -117,64 +119,91 @@ def readline(uart_bus):
     global drop_target_reset_sound_timer
     global cur_hyperspace_trigger_timer
     global ball_drained_timer
+    global ir_scores
+    global pins
+    global aw_devices
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
         data_string = ''.join([chr(b) for b in data])
         # Parse command
         command_list = data_string.split()
-        command = command_list[0]
-        if command == 'HYP':
-            # Hyperspace
-            print(f"Hyperspace launched {cur_hyperspace_value + 1}")
-            increase_score((cur_hyperspace_value + 1) * 100)
-            play_sound(hyperspace_sound_list[cur_hyperspace_value])
-            cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
-            cur_hyperspace_trigger_timer = time.monotonic()
-        elif command == 'DRN':
-            # Ball drained
-            print("Ball drained!")
-            # Relay to sound board
-            send_uart(uart_sound, command)
-            # Wait for a bit before reloading
-            ball_drained_timer = time.monotonic()
-            # TODO: Crash bonus or something
-        elif command == 'PNT':
-            # Update score
-            increase_score(int(command_list[1]))
-            send_uart(uart_sound, command)  # In case there was an IR sensor skipover
-        elif command == 'DTR':
-            # Drop target reset
-            print("Drop target reset!")
-            # Delay before playing sound
-            drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
-            increase_score(1000)
-        elif command == 'BTN':
-            button_num = int(command_list[1])
-            if button_num == 0:
-                print("Select first mission")
-                # TODO: Do something with this info
-            elif button_num == 1:
-                print("Select second mission")
-            elif button_num == 2:
-                print("Select third mission")
-            increase_score(50)
-        elif command == 'INI':
-            board_initialized = command_list[1]
-            if board_initialized == 'solenoidDriver':
-                print("Solenoid driver initialized")
-                solenoid_driver_initialized = True
-            elif board_initialized == 'soundController':
-                print("Sound controller initialized")
-                sound_controller_initialized = True
-            if solenoid_driver_initialized and sound_controller_initialized:
-                print("All boards initialized")
-                # Stop animation
-                startup_anim = False
-                # Reload the ball
-                send_uart(uart_solenoid, "RLD")
-        else:
-            print(data_string, end="")
+        if len(command_list) > 0:
+            command = command_list[0]
+            if command == 'HYP':
+                # Hyperspace
+                print(f"Hyperspace launched {cur_hyperspace_value + 1}")
+                increase_score((cur_hyperspace_value + 1) * 100)
+                play_sound(hyperspace_sound_list[cur_hyperspace_value])
+                cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
+                cur_hyperspace_trigger_timer = time.monotonic()
+            elif command == 'DRN':
+                # Ball drained
+                print("Ball drained!")
+                # Relay to sound board
+                send_uart(uart_sound, command)
+                # Wait for a bit before reloading
+                ball_drained_timer = time.monotonic()
+                # TODO: Crash bonus or something
+            elif command == 'DTR':
+                # Drop target reset
+                print("Drop target reset!")
+                # Delay before playing sound
+                drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
+                increase_score(1000)
+            elif command == 'BTN':
+                button_num = int(command_list[1])
+                if button_num == 0:
+                    print("Select first mission")
+                    # TODO: Do something with this info
+                elif button_num == 1:
+                    print("Select second mission")
+                elif button_num == 2:
+                    print("Select third mission")
+                increase_score(50)
+            elif command == 'INI':
+                board_initialized = command_list[1]
+                if board_initialized == 'solenoidDriver':
+                    print("Solenoid driver initialized")
+                    solenoid_driver_initialized = True
+                elif board_initialized == 'soundController':
+                    print("Sound controller initialized")
+                    sound_controller_initialized = True
+                if solenoid_driver_initialized and sound_controller_initialized:
+                    print("All boards initialized")
+                    # Stop animation
+                    startup_anim = False
+                    for aw_device in aw_devices:
+                        for pin in range(len(pins)):
+                            aw_device.set_constant_current(pin, 0)
+                    # Reload the ball
+                    send_uart(uart_solenoid, "RLD")
+            elif command == 'IR':
+                print("IR sensor triggered")
+                increase_score(ir_scores[int(command_list[1])])
+            elif command == 'DT':
+                print("Drop target triggered")
+                increase_score(1000)
+            elif command == 'PB':
+                print("Pop Bumper Triggered")
+                increase_score(200)
+            elif command == 'SLG':
+                print("Slingshot Triggered")
+                increase_score(100)
+            elif command == 'FLU':
+                print("Left flipper Up")
+                aw_devices[0].set_constant_current(pins[3], 255)
+            elif command == 'FLD':
+                print("Left flipper Down")
+                aw_devices[0].set_constant_current(pins[3], 0)
+            elif command == 'FRU':
+                print("Right flipper Up")
+                aw_devices[0].set_constant_current(pins[4], 255)
+            elif command == 'FRD':
+                print("Right flipper Down")
+                aw_devices[0].set_constant_current(pins[4], 0)
+            else:
+                print(data_string, end="")
 
 
 def init_uart(tx_pin, rx_pin):
@@ -287,6 +316,7 @@ score = 0
 ball = 1
 n = 0
 pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expander
+ir_scores = [100, 500, 200]  # Score values for each IR sensor
 NUM_PINS = len(pins)
 PIN_DELAY = 750
 TOTAL_CYCLE = NUM_PINS * PIN_DELAY
@@ -308,8 +338,6 @@ while True:
     while uart_solenoid.in_waiting > 0:
         readline(uart_solenoid)
 
-    # TODO: add new game button
-
     # Blink LEDs randomly during startup animation
     if startup_anim:
         if time.monotonic() > startup_anim_timer + STARTUP_ANIM_LED_BLINK_TIME:
@@ -317,18 +345,6 @@ while True:
             for aw_device in aw_devices:
                 for pin in range(len(pins)):
                     aw_device.set_constant_current(pin, 255 if random.random() > 0.5 else 0)
-    else:
-        # LED blinky test
-        # TODO: Remove
-        for idx, pin_ in enumerate(pins):
-            pin_val = 0
-            if n > idx * PIN_DELAY and n < (idx + 1) * PIN_DELAY:
-                # First ship laser diode is dim for some reason, so set second one dim too
-                pin_val = 140 if idx == 0 else 255
-            aw1.set_constant_current(pin_, pin_val)
-            aw2.set_constant_current(pin_, 255 if pin_val > 0 else 0)
-            aw3.set_constant_current(pin_, 255 if pin_val > 0 else 0)
-        n = (n + 5) % TOTAL_CYCLE
 
     # Update ship servo
     cur_time = time.monotonic()
@@ -369,4 +385,8 @@ while True:
     new_game_button_debouncer.update()
     if new_game_button_debouncer.fell:
         print("New game button pressed; manual reload")
+        aw_devices[0].set_constant_current(pins[2], 255)
         send_uart(uart_solenoid, "RLD")
+    elif new_game_button_debouncer.rose:
+        print("New game button released")
+        aw_devices[0].set_constant_current(pins[2], 0)

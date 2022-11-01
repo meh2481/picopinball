@@ -85,43 +85,44 @@ def readline_comm(uart_recv):
         # convert bytearray to string
         data_string = ''.join([chr(b) for b in data])
         command_list = data_string.split()
-        command = command_list[0]
-        if command == 'SND':
-            # SND <sound_num> - Play specified sound
-            sound_num = command_list[1]
-            print("Got sound to play: ", sound_num, end="")
-            play_sound(uart, int(sound_num))
-        elif command == 'RST':
-            # RST - Reset and stop all currently-playing sounds
-            print("Got reset command")
-            kill_sound()
-        elif command == 'MUS':
-            # MUS <on/off> - Turn music on/off
-            on_off = command_list[1]
-            if on_off.upper() == 'ON':
-                print("Turning music on")
-                audio.play(decoder)
-            elif on_off.upper() == 'OFF':
-                print("Turning music off")
-                audio.stop()
-            else:
-                print("Invalid MUS command")
-        elif command == 'DRN':
-            play_sound(uart, BALL_DRAINED_SOUND)
-            pixels.fill((176, 13, 0))  # Drain neopixel color is a dark red
-            pixels.show()
-            # Delay and then reset animation
-            drained_time = time.monotonic()
-            currently_drained = True
-        elif command == 'PNT':
-            # In case IR sensors don't trigger, cancel the launching animation as soon as anything else happens
-            if ball_launch_animation:
-                # Cancel ball launching animation
-                ball_launch_animation = False
-                pixels.fill((255, 255, 255))
+        if len(command_list) > 0:
+            command = command_list[0]
+            if command == 'SND':
+                # SND <sound_num> - Play specified sound
+                sound_num = command_list[1]
+                print("Got sound to play: ", sound_num, end="")
+                play_sound(uart, int(sound_num))
+            elif command == 'RST':
+                # RST - Reset and stop all currently-playing sounds
+                print("Got reset command")
+                kill_sound()
+            elif command == 'MUS':
+                # MUS <on/off> - Turn music on/off
+                on_off = command_list[1]
+                if on_off.upper() == 'ON':
+                    print("Turning music on")
+                    audio.play(decoder)
+                elif on_off.upper() == 'OFF':
+                    print("Turning music off")
+                    audio.stop()
+                else:
+                    print("Invalid MUS command")
+            elif command == 'DRN':
+                play_sound(uart, BALL_DRAINED_SOUND)
+                pixels.fill((176, 13, 0))  # Drain neopixel color is a dark red
                 pixels.show()
-        else:
-            print(f'Unknown command: {command}')
+                # Delay and then reset animation
+                drained_time = time.monotonic()
+                currently_drained = True
+            elif command == 'PNT':
+                # In case IR sensors don't trigger, cancel the launching animation as soon as anything else happens
+                if ball_launch_animation:
+                    # Cancel ball launching animation
+                    ball_launch_animation = False
+                    pixels.fill((255, 255, 255))
+                    pixels.show()
+            else:
+                print(f'Unknown command: {command}')
 
 
 def init_uart():
@@ -228,7 +229,6 @@ send_uart("INI soundController")
 pixels.fill((0, 0, 0))
 pixels.show()
 print("Setting up IR Sensors...")
-ir_scores = [100, 500, 200]  # Score values for each IR sensor
 # GP27 = left IR sensor
 # GP3 = middle IR sensor
 # GP5 = right IR sensor
@@ -274,7 +274,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                     print(f'IR sensor {i} triggered')
                     play_sound(uart, RE_ENTRY_SOUND)
                     ir_sensors[i].count = 0
-                    send_uart(f'PNT {ir_scores[i]}')
+                    send_uart(f'IR {i}')
                     # Cancel ball launching animation
                     if ball_launch_animation:
                         ball_launch_animation = False
