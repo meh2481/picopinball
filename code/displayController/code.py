@@ -122,6 +122,7 @@ def readline(uart_bus):
     global ir_scores
     global pins
     global aw_devices
+    global text_area_recommendation
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -165,9 +166,11 @@ def readline(uart_bus):
                 board_initialized = command_list[1]
                 if board_initialized == 'solenoidDriver':
                     print("Solenoid driver initialized")
+                    text_area_recommendation.text = "Solenoid"
                     solenoid_driver_initialized = True
                 elif board_initialized == 'soundController':
                     print("Sound controller initialized")
+                    text_area_recommendation.text = "Sound"
                     sound_controller_initialized = True
                 if solenoid_driver_initialized and sound_controller_initialized:
                     print("All boards initialized")
