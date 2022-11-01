@@ -2,7 +2,6 @@ import board
 import terminalio
 import displayio
 import busio
-from analogio import AnalogIn
 from digitalio import DigitalInOut, Direction, Pull
 from adafruit_display_text import label
 from adafruit_st7789 import ST7789
@@ -97,12 +96,18 @@ def send_uart(uart, str):
     write_str = f"{str}\r\n"
     uart.write(bytearray(write_str, "utf-8"))
 
+sound_controller_initialized = False
+solenoid_driver_initialized = False
+startup_anim = True
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
     global hyperspace_sound_list
     global cur_hyperspace_sound
     global uart_sound
+    global solenoid_driver_initialized
+    global sound_controller_initialized
+    global startup_anim
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -130,6 +135,7 @@ def readline(uart_bus):
         elif command == 'DTR':
             # Drop target reset
             print("Drop target reset!")
+            # TODO: Delay before playing sound. Also remove the dumb sound from this list
             play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
             increase_score(1000)
         elif command == 'BTN':
@@ -142,6 +148,17 @@ def readline(uart_bus):
             elif button_num == 2:
                 print("Select third mission")
             increase_score(50)
+        elif command == 'INI':
+            board_initialized = command_list[1]
+            if board_initialized == 'solenoidDriver':
+                print("Solenoid driver initialized")
+                solenoid_driver_initialized = True
+            elif board_initialized == 'soundController':
+                print("Sound controller initialized")
+                sound_controller_initialized = True
+            if solenoid_driver_initialized and sound_controller_initialized:
+                print("All boards initialized")
+                startup_anim = False
         else:
             print(data_string, end="")
 
@@ -175,6 +192,7 @@ print("Found AW9523 2")
 # Third one has A1 jumper bridged
 aw3 = adafruit_aw9523.AW9523(i2c, address=0x5A)
 print("Found AW9523 3")
+aw_devices = [aw1, aw2, aw3]
 
 # Set all pins to outputs and LED (const current) mode
 aw1.LED_modes = 0xFFFF
@@ -194,6 +212,7 @@ tft_backlight = board.GP9
 # Setup display
 display_bus = displayio.FourWire(spi, command=tft_dc, chip_select=tft_cs, reset=tft_reset)
 display = ST7789(display_bus, width=240, height=320,rotation=180, backlight_pin=tft_backlight)
+# If using bigger display:
 # display = adafruit_ili9341.ILI9341(display_bus, width=240, height=320, rotation=270, backlight_pin=tft_backlight)
 
 # Load score background
@@ -231,16 +250,6 @@ text = "Hit the Attack\nBumpers 8\ntimes"
 text_area_recommendation = label.Label(terminalio.FONT, text=text, color=0x727ACA, line_spacing=0.9)
 text_group_recommendation.append(text_area_recommendation)  # Subgroup for text scaling
 group.append(text_group_recommendation)
-
-# Init spinner
-pin = AnalogIn(board.GP26)
-debounced_spinner = Debouncer(lambda: pin.value > 35000, interval=0.002)
-
-# TEMP: Test button on GPIO17
-button = DigitalInOut(board.GP17)
-button.direction = Direction.INPUT
-button.pull = Pull.UP
-debounced_button = Debouncer(button)
 
 # UART bus for sound controller
 uart_sound = init_uart(board.GP0, board.GP1)
@@ -283,23 +292,15 @@ hyperspace_sound_list = [
     HYPERSPACE_GRAVITY_WELL_SOUND
 ]
 cur_hyperspace_sound = 0
+startup_anim_timer = time.monotonic()
+STARTUP_ANIM_LED_BLINK_TIME = 0.25
 while True:
-    # Update debouncers
-    debounced_spinner.update()
-    debounced_button.update()
 
     # Read any data waiting on the UART lines
     while uart_sound.in_waiting > 0:
         readline(uart_sound)
     while uart_solenoid.in_waiting > 0:
         readline(uart_solenoid)
-
-    # TEMP: Test button on GP17 to play sound & increase score
-    if debounced_button.fell:
-        print("Test button pressed")
-        increase_score(100)
-        play_sound(hyperspace_sound_list[cur_hyperspace_sound])
-        cur_hyperspace_sound = (cur_hyperspace_sound + 1) % len(hyperspace_sound_list)
 
     # Update score and play sounds for IR sensor being triggered
     # TODO: Remove IR sensors from this board, add new game button
@@ -314,22 +315,25 @@ while True:
         elif sensor.value:
             ir_sensor_states[i] = False
 
-    # Spinner
-    # TODO: Remove
-    if debounced_spinner.rose or debounced_spinner.fell:
-        increase_score(10)
-
-    # LED blinky test
-    # TODO: Remove
-    for idx, pin_ in enumerate(pins):
-        pin_val = 0
-        if n > idx * PIN_DELAY and n < (idx + 1) * PIN_DELAY:
-            # First ship laser diode is dim for some reason, so set second one dim too
-            pin_val = 140 if idx == 0 else 255
-        aw1.set_constant_current(pin_, pin_val)
-        aw2.set_constant_current(pin_, 255 if pin_val > 0 else 0)
-        aw3.set_constant_current(pin_, 255 if pin_val > 0 else 0)
-    n = (n + 5) % TOTAL_CYCLE
+    # Blink LEDs randomly during startup animation
+    if startup_anim:
+        if time.monotonic() > startup_anim_timer + STARTUP_ANIM_LED_BLINK_TIME:
+            startup_anim_timer = time.monotonic()
+            for aw_device in aw_devices:
+                for pin in range(len(pins)):
+                    aw_device.set_constant_current(pin, 255 if random.random() > 0.5 else 0)
+    else:
+        # LED blinky test
+        # TODO: Remove
+        for idx, pin_ in enumerate(pins):
+            pin_val = 0
+            if n > idx * PIN_DELAY and n < (idx + 1) * PIN_DELAY:
+                # First ship laser diode is dim for some reason, so set second one dim too
+                pin_val = 140 if idx == 0 else 255
+            aw1.set_constant_current(pin_, pin_val)
+            aw2.set_constant_current(pin_, 255 if pin_val > 0 else 0)
+            aw3.set_constant_current(pin_, 255 if pin_val > 0 else 0)
+        n = (n + 5) % TOTAL_CYCLE
 
     # Update ship servo
     cur_time = time.monotonic()
