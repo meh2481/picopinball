@@ -74,6 +74,21 @@ led.direction = Direction.OUTPUT
 led.value = True
 
 
+def init_uart(tx_pin, rx_pin):
+    """Initialize a UART bus."""
+    uart = busio.UART(tx=tx_pin, rx=rx_pin, baudrate=9600, timeout=0.5)
+    return uart
+
+
+# XXX: Swap these and see if anything changes
+# UART bus for sound controller
+uart_sound = init_uart(board.GP0, board.GP1)
+# uart_solenoid = init_uart(board.GP0, board.GP1)
+# UART bus for solenoid controller
+uart_solenoid = init_uart(board.GP4, board.GP5)
+# uart_sound = init_uart(board.GP4, board.GP5)
+
+
 def increase_score(add):
     """Update the score on the screen."""
     global score
@@ -209,12 +224,6 @@ def readline(uart_bus):
                 print(data_string, end="")
 
 
-def init_uart(tx_pin, rx_pin):
-    """Initialize a UART bus."""
-    uart = busio.UART(tx=tx_pin, rx=rx_pin, baudrate=9600, timeout=0.5)
-    return uart
-
-
 def rand_ship_time():
     """Return a random time for the servo to update next."""
     return time.monotonic() + random.uniform(5, 30)
@@ -296,11 +305,6 @@ text = "Hit the Attack\nBumpers 8\ntimes"
 text_area_recommendation = label.Label(terminalio.FONT, text=text, color=0x727ACA, line_spacing=0.9)
 text_group_recommendation.append(text_area_recommendation)  # Subgroup for text scaling
 group.append(text_group_recommendation)
-
-# UART bus for sound controller
-uart_sound = init_uart(board.GP0, board.GP1)
-# UART bus for solenoid controller
-uart_solenoid = init_uart(board.GP4, board.GP5)
 
 # New game button
 new_game_button = DigitalInOut(board.GP7)
