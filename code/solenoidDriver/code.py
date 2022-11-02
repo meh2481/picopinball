@@ -30,6 +30,7 @@ DRAIN_SIGNAL_DEBOUNCE_TIME = 5.0
 
 def send_uart(str):
     global uart
+    print(f'UART send: {str}')
     uart.write(bytearray(f"{str}\r\n", "utf-8"))
 
 reload_solenoid_timer = None
@@ -121,10 +122,11 @@ pop_bumper_signals_debounced = [
 button_r = DigitalInOut(board.GP18)
 button_r.direction = Direction.INPUT
 button_r.pull = Pull.DOWN
-
 button_l = DigitalInOut(board.GP19)
 button_l.direction = Direction.INPUT
 button_l.pull = Pull.DOWN
+button_l_debouncer = Debouncer(button_l)
+button_r_debouncer = Debouncer(button_r)
 
 # Init L/R flipper solenoids
 solenoid_l = DigitalInOut(board.GP17)
@@ -223,17 +225,19 @@ while True:
     cur_time = time.monotonic()
 
     # Update flippers
+    button_l_debouncer.update()
+    button_r_debouncer.update()
     # TODO: PWM the solenoids after a certain period of time to make them last longer
-    if button_l.value:
+    if button_l_debouncer.rose:
         solenoid_l.value = True
         send_uart("FLU")
-    else:
+    elif button_l_debouncer.fell:
         solenoid_l.value = False
         send_uart("FLD")
-    if button_r.value:
+    if button_r_debouncer.rose:
         solenoid_r.value = True
         send_uart("FRU")
-    else:
+    elif button_r_debouncer.fell:
         solenoid_r.value = False
         send_uart("FRD")
 

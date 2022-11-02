@@ -195,6 +195,7 @@ uart_comm = init_uart_comm()
 def send_uart(str):
     """Send a message out on the comm UART bus."""
     global uart_comm
+    print(f'UART send: {str}')
     write_str = f"{str}\r\n"
     uart_comm.write(bytearray(write_str, "utf-8"))
 

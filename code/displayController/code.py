@@ -110,6 +110,7 @@ def play_sound(sound_idx):
 
 def send_uart(uart, str):
     """Send a message out on a UART bus."""
+    print(f'UART send: {str}')
     write_str = f"{str}\r\n"
     uart.write(bytearray(write_str, "utf-8"))
 
