@@ -59,7 +59,6 @@ FLIPPER_SOUND_4 = 40
 TILT_SOUND = 41
 SPINNER_SOUND = 42
 
-GAME_OVER_SOUND = GRAVITY_WELL_CANCELLED_SOUND
 DROP_TARGET_RESET_SOUNDS = [DROP_TARGET_RESET_SOUND_2, DROP_TARGET_RESET_SOUND_3]
 
 MODE_STARTUP = 0
@@ -86,6 +85,7 @@ def init_uart(tx_pin, rx_pin):
     uart = busio.UART(tx=tx_pin, rx=rx_pin, baudrate=9600, timeout=0.5)
     return uart
 
+score_multiplier = 1
 
 def increase_score(add):
     """Update the score on the screen."""
@@ -169,7 +169,7 @@ def readline(uart_bus):
                 # Delay before playing sound
                 drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
                 increase_score(1000)
-                score_multiplier = score_multiplier + 1
+                score_multiplier = min(score_multiplier + 1, 5)
             elif command == 'BTN':
                 button_num = int(command_list[1])
                 if button_num == 0:
@@ -356,6 +356,7 @@ while True:
         readline(uart_solenoid)
 
     # Blink LEDs randomly during startup animation
+    # TODO: Doesn't really work. Blink randomly during gameover instead
     if False:
         if time.monotonic() > startup_anim_timer + STARTUP_ANIM_LED_BLINK_TIME:
             startup_anim_timer = time.monotonic()
@@ -397,9 +398,8 @@ while True:
         ball_drained_timer = None
         cur_hyperspace_value = 0
         ball += 1
-        if ball >= NUM_BALLS:
+        if ball > NUM_BALLS:
             mode = MODE_GAME_OVER
-            play_sound(GAME_OVER_SOUND)
             send_uart(uart_sound, "GOV")
         else:
             text_area_ball.text = str(ball)

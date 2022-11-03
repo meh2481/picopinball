@@ -25,6 +25,7 @@ SHOOT_SOUND_3 = 38
 SHOOT_SOUNDS = [SHOOT_SOUND, SHOOT_SOUND_2, SHOOT_SOUND_3]
 BALL_DRAINED_SOUND = 19
 STARTUP_SOUND = 0
+GAME_OVER_SOUND = 28
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
@@ -114,6 +115,7 @@ def readline_comm(uart_recv):
                 print("Got reset command")
                 play_sound(uart, STARTUP_SOUND)
                 ball_launch_animation = True
+                game_over_animation = False
                 drained_time = 0
                 currently_drained = False
                 pixels.fill((0, 0, 0))
@@ -145,10 +147,12 @@ def readline_comm(uart_recv):
                     pixels.show()
             elif command == 'GOV':
                 # Game over
+                play_sound(uart, GAME_OVER_SOUND)
                 game_over_animation = True
                 pixels.fill((255, 0, 0))
                 pixels.show()
                 red_pulse_anim.reset()
+                currently_drained = False
             else:
                 print(f'Unknown command: {command}')
 
@@ -275,10 +279,10 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             cur_time = time.monotonic()
 
             # Update pixel animations
-            if ball_launch_animation:
-                rainbow_comet_v.animate()
             if game_over_animation:
                 red_pulse_anim.animate()
+            elif ball_launch_animation:
+                rainbow_comet_v.animate()
             if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
                 currently_drained = False
                 ball_launch_animation = True
