@@ -87,16 +87,6 @@ def init_uart(tx_pin, rx_pin):
     return uart
 
 
-# XXX: Swap these and see if anything changes
-# UART bus for sound controller
-uart_sound = init_uart(board.GP0, board.GP1)
-# uart_solenoid = init_uart(board.GP0, board.GP1)
-# UART bus for solenoid controller
-uart_solenoid = init_uart(board.GP4, board.GP5)
-# uart_sound = init_uart(board.GP4, board.GP5)
-
-score_multiplier = 1
-
 def increase_score(add):
     """Update the score on the screen."""
     global score
@@ -333,6 +323,11 @@ cur_ship_angle = ship_servo.angle = 90
 rand_servo_time = rand_ship_time()
 servo_shutoff_time = time.monotonic() + SERVO_TIMEOUT
 
+# UART bus for sound controller
+uart_sound = init_uart(board.GP0, board.GP1)
+# UART bus for solenoid controller
+uart_solenoid = init_uart(board.GP4, board.GP5)
+
 score = 0
 ball = 1
 n = 0
@@ -361,8 +356,7 @@ while True:
         readline(uart_solenoid)
 
     # Blink LEDs randomly during startup animation
-    # TODO: During gameover instead, and only after gameover sound delay
-    if startup_anim:
+    if False:
         if time.monotonic() > startup_anim_timer + STARTUP_ANIM_LED_BLINK_TIME:
             startup_anim_timer = time.monotonic()
             for aw_device in aw_devices:
