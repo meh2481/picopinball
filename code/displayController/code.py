@@ -65,6 +65,11 @@ MODE_STARTUP = 0
 MODE_PLAYING = 1
 MODE_GAME_OVER = 2
 
+DROP_TARGET_FAR = 5
+DROP_TARGET_MIDDLE = 6
+DROP_TARGET_CLOSE = 7
+DROP_TARGET_PIN_MAPPING = [DROP_TARGET_FAR, DROP_TARGET_MIDDLE, DROP_TARGET_CLOSE]
+
 mode = MODE_STARTUP
 
 # Other constants
@@ -139,6 +144,7 @@ def readline(uart_bus):
     global aw_devices
     global mode
     global score_multiplier
+    global DROP_TARGET_PIN_MAPPING
     # global text_area_recommendation
     data = uart_bus.readline()
     if data is not None:
@@ -170,6 +176,9 @@ def readline(uart_bus):
                 drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
                 increase_score(1000)
                 score_multiplier = min(score_multiplier + 1, 5)
+                # Reset drop target lights
+                for i in range(len(DROP_TARGET_PIN_MAPPING)):
+                    aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
             elif command == 'BTN':
                 button_num = int(command_list[1])
                 if button_num == 0:
@@ -197,6 +206,9 @@ def readline(uart_bus):
                     for aw_device in aw_devices:
                         for pin in range(len(pins)):
                             aw_device.set_constant_current(pin, 0)
+                    # Turn on relevant lamps
+                    for i in range(len(DROP_TARGET_PIN_MAPPING)):
+                        aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
                     mode = MODE_PLAYING
@@ -205,6 +217,7 @@ def readline(uart_bus):
                 increase_score(ir_scores[int(command_list[1])])
             elif command == 'DT':
                 print("Drop target triggered")
+                aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[int(command_list[1])]], 0)
                 increase_score(1000)
             elif command == 'PB':
                 print("Pop Bumper Triggered")
@@ -406,9 +419,10 @@ while True:
             send_uart(uart_solenoid, "RLD")
             # TODO: Some other reset things
     
-    # TODO: Start new game and such
+    # Start new game and such
     new_game_button_debouncer.update()
     if new_game_button_debouncer.fell:
+        aw_devices[0].set_constant_current(pins[2], 255)
         if mode == MODE_GAME_OVER:
             # Start a new game
             print("Start new game")
@@ -420,14 +434,16 @@ while True:
             text_area_recommendation.text = "Hit the Attack\nBumpers 8\ntimes"
             cur_hyperspace_value = 0
             score_multiplier = 1
+            # Reset drop target lights
+            for i in range(len(DROP_TARGET_PIN_MAPPING)):
+                aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
             send_uart(uart_solenoid, "RST")
             send_uart(uart_sound, "RST")
-            # TODO: Startup anim again
+            # TODO: Startup anim and delay again
             send_uart(uart_solenoid, "RLD")
         elif mode == MODE_PLAYING:
             print("New game button pressed; manual reload")
         send_uart(uart_solenoid, "RLD")
-        aw_devices[0].set_constant_current(pins[2], 255)
     elif new_game_button_debouncer.rose:
         print("New game button released")
         aw_devices[0].set_constant_current(pins[2], 0)

@@ -313,7 +313,7 @@ while True:
         drop_target_debouncers[i].update()  # Update debouncers
         if drop_target_debouncers[i].rose:
             print("Drop target down")
-            send_uart("DT " + str(i + 1))
+            send_uart("DT " + str(i))
     if drop_target_switch_1.value and drop_target_switch_2.value and drop_target_switch_3.value and drop_target_state == DROP_TARGET_STATE_NONE:
         print("All switches down, raising servos")
         send_uart("DTR")

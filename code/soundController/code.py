@@ -13,7 +13,6 @@ import random
 import neopixel
 from adafruit_led_animation.animation.rainbowcomet import RainbowComet
 from adafruit_led_animation.animation.pulse import Pulse
-from adafruit_led_animation.color import AMBER
 from adafruit_led_animation import helper
 
 # Constants
@@ -60,7 +59,7 @@ pixel_grid = helper.PixelMap.vertical_lines(
 rainbow_comet_v = RainbowComet(
     pixel_grid, speed=.035, tail_length=7, bounce=False
 )
-red_pulse_anim = Pulse(pixels, speed=.035, color=AMBER, period=2.0)
+red_pulse_anim = Pulse(pixels, speed=.035, color=(200, 0, 0), period=1.0)
 
 # Setup globals
 playing = False
@@ -133,6 +132,7 @@ def readline_comm(uart_recv):
                     print("Invalid MUS command")
             elif command == 'DRN':
                 play_sound(uart, BALL_DRAINED_SOUND)
+                ball_launch_animation = False
                 pixels.fill((176, 13, 0))  # Drain neopixel color is a dark red
                 pixels.show()
                 # Delay and then reset animation
