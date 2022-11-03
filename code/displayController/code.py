@@ -176,9 +176,6 @@ def readline(uart_bus):
                 drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
                 increase_score(1000)
                 score_multiplier = min(score_multiplier + 1, 5)
-                # Reset drop target lights
-                for i in range(len(DROP_TARGET_PIN_MAPPING)):
-                    aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
             elif command == 'BTN':
                 button_num = int(command_list[1])
                 if button_num == 0:
@@ -393,6 +390,9 @@ while True:
     if drop_target_reset_sound_timer and cur_time > drop_target_reset_sound_timer:
         drop_target_reset_sound_timer = None
         play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
+        # Reset drop target lights
+        for i in range(len(DROP_TARGET_PIN_MAPPING)):
+            aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
     
     # Decrease cur_hyperspace_value after a delay & turn off lights
     if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
