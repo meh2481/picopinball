@@ -12,6 +12,8 @@ from adafruit_debouncer import Debouncer
 import random
 import neopixel
 from adafruit_led_animation.animation.rainbowcomet import RainbowComet
+from adafruit_led_animation.animation.pulse import Pulse
+from adafruit_led_animation.color import AMBER
 from adafruit_led_animation import helper
 
 # Constants
@@ -22,6 +24,7 @@ SHOOT_SOUND_2 = 32
 SHOOT_SOUND_3 = 38
 SHOOT_SOUNDS = [SHOOT_SOUND, SHOOT_SOUND_2, SHOOT_SOUND_3]
 BALL_DRAINED_SOUND = 19
+STARTUP_SOUND = 0
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
@@ -35,6 +38,7 @@ audio.play(wave)
 # Next, init board outer ring neopixels to light up the board
 print("Initializing neopixels...")
 ball_launch_animation = True
+game_over_animation = False
 drained_time = 0
 currently_drained = False
 DRAINED_SOUND_LEN = 2.5
@@ -46,6 +50,16 @@ pixels = neopixel.NeoPixel(
 )
 pixels.fill((0, 136, 255))  # Init neopixel color is a dark blue
 pixels.show()
+
+# Create neopixel animations
+print("Setting up neopixel animations...")
+pixel_grid = helper.PixelMap.vertical_lines(
+    pixels, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
+)
+rainbow_comet_v = RainbowComet(
+    pixel_grid, speed=.035, tail_length=7, bounce=False
+)
+red_pulse_anim = Pulse(pixels, speed=.035, color=AMBER, period=2.0)
 
 # Setup globals
 playing = False
@@ -76,7 +90,10 @@ def readline_comm(uart_recv):
     global uart
     global audio
     global decoder
+    # TODO: Animation state machine instead of multiple global vars
     global ball_launch_animation
+    global game_over_animation
+    global red_pulse_anim
     global pixels
     global drained_time
     global currently_drained
@@ -93,9 +110,14 @@ def readline_comm(uart_recv):
                 print("Got sound to play: ", sound_num, end="")
                 play_sound(uart, int(sound_num))
             elif command == 'RST':
-                # RST - Reset and stop all currently-playing sounds
+                # RST - Reset and start new game
                 print("Got reset command")
-                kill_sound()
+                play_sound(uart, STARTUP_SOUND)
+                ball_launch_animation = True
+                drained_time = 0
+                currently_drained = False
+                pixels.fill((0, 0, 0))
+                pixels.show()
             elif command == 'MUS':
                 # MUS <on/off> - Turn music on/off
                 on_off = command_list[1]
@@ -121,6 +143,12 @@ def readline_comm(uart_recv):
                     ball_launch_animation = False
                     pixels.fill((255, 255, 255))
                     pixels.show()
+            elif command == 'GOV':
+                # Game over
+                game_over_animation = True
+                pixels.fill((255, 0, 0))
+                pixels.show()
+                red_pulse_anim.reset()
             else:
                 print(f'Unknown command: {command}')
 
@@ -240,15 +268,6 @@ print("Setting up IR Sensors...")
 # GP5 = right IR sensor
 with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter(board.GP3, pull=digitalio.Pull.UP) as ir2, countio.Counter(board.GP5, pull=digitalio.Pull.UP) as ir3:
     ir_sensors = [ir1, ir2, ir3]
-
-    # Start neopixel animation
-    print("Starting neopixel animation...")
-    pixel_grid = helper.PixelMap.vertical_lines(
-        pixels, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
-    )
-    rainbow_comet_v = RainbowComet(
-        pixel_grid, speed=.035, tail_length=7, bounce=False
-    )
     print("Start main loop...")
     while True:
         audio.play(decoder) # Loop music forever
@@ -258,6 +277,8 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             # Update pixel animations
             if ball_launch_animation:
                 rainbow_comet_v.animate()
+            if game_over_animation:
+                red_pulse_anim.animate()
             if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
                 currently_drained = False
                 ball_launch_animation = True

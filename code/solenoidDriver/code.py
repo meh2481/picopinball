@@ -40,6 +40,8 @@ def readline():
     global uart
     global reload_solenoid
     global reload_solenoid_timer
+    global drop_target_state
+    global drop_target_start_time
     data = uart.readline()
     if data is not None:
         # convert bytearray to string
@@ -51,7 +53,11 @@ def readline():
                 # Fire the reload solenoid
                 reload_solenoid.value = True
                 reload_solenoid_timer = time.monotonic()
-            # TODO: Reset game and other commands
+            elif command == 'RST':
+                # Reset the drop targets
+                drop_target_state = DROP_TARGET_STATE_WAIT
+                drop_target_start_time = time.monotonic()
+                # TODO: Recalibrate pop bumpers probably
             else:
                 print(f'Unknown command: {command}')
 
