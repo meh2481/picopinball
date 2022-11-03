@@ -261,7 +261,6 @@ while audio.playing:
         readline_comm(uart_comm)
 print("Startup sound done")
 wave.deinit()
-time.sleep(0.5)
 send_uart("INI soundController")
 # Clear out pixels
 pixels.fill((0, 0, 0))
