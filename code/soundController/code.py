@@ -47,7 +47,7 @@ pixels = neopixel.NeoPixel(
 pixels.fill((0, 136, 255))  # Init neopixel color is a dark blue
 pixels.show()
 
-# Setup gloals
+# Setup globals
 playing = False
 playing_stop_timer = 0
 uart = None
@@ -222,9 +222,14 @@ debounced_mission_buttons = [
 
 print("Wait for startup sound done...")
 while audio.playing:
-    pass
+    while uart.in_waiting > 0:
+        readline(uart)
+
+    while uart_comm.in_waiting > 0:
+        readline_comm(uart_comm)
 print("Startup sound done")
 wave.deinit()
+time.sleep(0.5)
 send_uart("INI soundController")
 # Clear out pixels
 pixels.fill((0, 0, 0))
