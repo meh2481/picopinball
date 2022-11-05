@@ -3,7 +3,6 @@ import busio
 import digitalio
 import adafruit_sdcard
 import storage
-import audiomp3
 import audiopwmio
 import time
 import countio
@@ -113,6 +112,7 @@ def readline_comm(uart_recv):
                 # RST - Reset and start new game
                 print("Got reset command")
                 play_sound(uart, STARTUP_SOUND)
+                # TODO: Delay for startup sound to finish
                 ball_launch_animation = True
                 game_over_animation = False
                 drained_time = 0
@@ -177,7 +177,7 @@ def init_uart():
     readline(uart)  # File count
 
     # DEBUG: List tracks
-    uart.write(b"L\r\n")
+    # uart.write(b"L\r\n")
     return uart
 
 
@@ -231,9 +231,8 @@ def send_uart(str):
     write_str = f"{str}\r\n"
     uart_comm.write(bytearray(write_str, "utf-8"))
 
-# Init MP3 decoder for music
-# TODO: Swap this over to WAV for less decoding processor overhead
-decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
+# Init Wav decoder for music
+decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"))
 
 # Init switches for mission select buttons
 mission_select_1 = digitalio.DigitalInOut(board.GP21)
@@ -256,7 +255,6 @@ print("Wait for startup sound done...")
 while audio.playing:
     while uart.in_waiting > 0:
         readline(uart)
-
     while uart_comm.in_waiting > 0:
         readline_comm(uart_comm)
 print("Startup sound done")
