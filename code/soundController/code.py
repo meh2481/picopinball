@@ -3,6 +3,7 @@ import busio
 import digitalio
 import adafruit_sdcard
 import storage
+import audiomp3
 import audiopwmio
 import time
 import countio
@@ -34,8 +35,8 @@ wave_file = open("sfx/SOUND1.WAV", "rb")
 wave = WaveFile(wave_file)
 audio.play(wave)
 
-# Next, init board outer ring neopixels to light up the board
-print("Initializing neopixels...")
+# Next, init board perimeter neopixels to light up the board
+print("Initializing neopixel perimeter...")
 ball_launch_animation = True
 game_over_animation = False
 drained_time = 0
@@ -44,21 +45,29 @@ DRAINED_SOUND_LEN = 2.5
 pixel_pin = board.GP1
 num_pixels = 39
 ORDER = neopixel.GRB
-pixels = neopixel.NeoPixel(
+pixels_perimeter = neopixel.NeoPixel(
     pixel_pin, num_pixels+1, brightness=0.25, auto_write=False, pixel_order=ORDER
 )
-pixels.fill((0, 136, 255))  # Init neopixel color is a dark blue
-pixels.show()
+pixels_perimeter.fill((0, 136, 255))  # Init neopixel color is a dark blue
+pixels_perimeter.show()
+
+# Initialize neopixel ring
+print("Initializing neopixel ring...")
+pixels_ring = neopixel.NeoPixel(
+    board.GP2, 24+12+1, brightness=0.3, auto_write=False, pixel_order=ORDER
+)
+pixels_ring.fill((0, 136, 255))
+pixels_ring.show()
 
 # Create neopixel animations
 print("Setting up neopixel animations...")
 pixel_grid = helper.PixelMap.vertical_lines(
-    pixels, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
+    pixels_perimeter, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
 )
 rainbow_comet_v = RainbowComet(
     pixel_grid, speed=.035, tail_length=7, bounce=False
 )
-red_pulse_anim = Pulse(pixels, speed=.035, color=(200, 0, 0), period=1.0)
+red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
 
 # Setup globals
 playing = False
@@ -93,7 +102,7 @@ def readline_comm(uart_recv):
     global ball_launch_animation
     global game_over_animation
     global red_pulse_anim
-    global pixels
+    global pixels_perimeter
     global drained_time
     global currently_drained
     data = uart_recv.readline()
@@ -117,8 +126,8 @@ def readline_comm(uart_recv):
                 game_over_animation = False
                 drained_time = 0
                 currently_drained = False
-                pixels.fill((0, 0, 0))
-                pixels.show()
+                pixels_perimeter.fill((0, 0, 0))
+                pixels_perimeter.show()
             elif command == 'MUS':
                 # MUS <on/off> - Turn music on/off
                 on_off = command_list[1]
@@ -133,8 +142,8 @@ def readline_comm(uart_recv):
             elif command == 'DRN':
                 play_sound(uart, BALL_DRAINED_SOUND)
                 ball_launch_animation = False
-                pixels.fill((176, 13, 0))  # Drain neopixel color is a dark red
-                pixels.show()
+                pixels_perimeter.fill((176, 13, 0))  # Drain neopixel color is a dark red
+                pixels_perimeter.show()
                 # Delay and then reset animation
                 drained_time = time.monotonic()
                 currently_drained = True
@@ -143,14 +152,14 @@ def readline_comm(uart_recv):
                 if ball_launch_animation:
                     # Cancel ball launching animation
                     ball_launch_animation = False
-                    pixels.fill((255, 255, 255))
-                    pixels.show()
+                    pixels_perimeter.fill((255, 255, 255))
+                    pixels_perimeter.show()
             elif command == 'GOV':
                 # Game over
                 play_sound(uart, GAME_OVER_SOUND)
                 game_over_animation = True
-                pixels.fill((255, 0, 0))
-                pixels.show()
+                pixels_perimeter.fill((255, 0, 0))
+                pixels_perimeter.show()
                 red_pulse_anim.reset()
                 currently_drained = False
             else:
@@ -232,7 +241,9 @@ def send_uart(str):
     uart_comm.write(bytearray(write_str, "utf-8"))
 
 # Init Wav decoder for music
-decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"))
+# decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"))
+# Init MP3 decoder for music
+decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
 # Init switches for mission select buttons
 mission_select_1 = digitalio.DigitalInOut(board.GP21)
@@ -260,9 +271,9 @@ while audio.playing:
 print("Startup sound done")
 wave.deinit()
 send_uart("INI soundController")
-# Clear out pixels
-pixels.fill((0, 0, 0))
-pixels.show()
+# Clear out perimeter neopixels
+pixels_perimeter.fill((0, 0, 0))
+pixels_perimeter.show()
 print("Setting up IR Sensors...")
 # GP27 = left IR sensor
 # GP3 = middle IR sensor
@@ -283,8 +294,8 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
                 currently_drained = False
                 ball_launch_animation = True
-                pixels.fill((0, 0, 0))
-                pixels.show()
+                pixels_perimeter.fill((0, 0, 0))
+                pixels_perimeter.show()
                 rainbow_comet_v.reset()
 
             # Print any data on the UART line from the audio fx board
@@ -306,8 +317,8 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                     # Cancel ball launching animation
                     if ball_launch_animation:
                         ball_launch_animation = False
-                        pixels.fill((255, 255, 255))
-                        pixels.show()
+                        pixels_perimeter.fill((255, 255, 255))
+                        pixels_perimeter.show()
 
             # Check mission select buttons
             for i in range(len(debounced_mission_buttons)):
