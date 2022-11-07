@@ -13,6 +13,7 @@ import random
 import neopixel
 from adafruit_led_animation.animation.rainbowcomet import RainbowComet
 from adafruit_led_animation.animation.pulse import Pulse
+from adafruit_led_animation.animation.rainbowsparkle import RainbowSparkle
 from adafruit_led_animation import helper
 
 # Constants
@@ -54,7 +55,7 @@ pixels_perimeter.show()
 # Initialize neopixel ring
 print("Initializing neopixel ring...")
 pixels_ring = neopixel.NeoPixel(
-    board.GP2, 24+12+1, brightness=0.3, auto_write=False, pixel_order=ORDER
+    board.GP2, 24+12+1, brightness=0.2, auto_write=False, pixel_order=ORDER
 )
 pixels_ring.fill((0, 136, 255))
 pixels_ring.show()
@@ -68,6 +69,7 @@ rainbow_comet_v = RainbowComet(
     pixel_grid, speed=.035, tail_length=7, bounce=False
 )
 red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
+ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
 
 # Setup globals
 playing = False
@@ -101,8 +103,10 @@ def readline_comm(uart_recv):
     # TODO: Animation state machine instead of multiple global vars
     global ball_launch_animation
     global game_over_animation
+    global ring_twinkle_anim
     global red_pulse_anim
     global pixels_perimeter
+    global pixels_ring
     global drained_time
     global currently_drained
     data = uart_recv.readline()
@@ -128,6 +132,8 @@ def readline_comm(uart_recv):
                 currently_drained = False
                 pixels_perimeter.fill((0, 0, 0))
                 pixels_perimeter.show()
+                pixels_ring.fill((15, 255, 120))
+                pixels_ring.show()
             elif command == 'MUS':
                 # MUS <on/off> - Turn music on/off
                 on_off = command_list[1]
@@ -158,8 +164,11 @@ def readline_comm(uart_recv):
                 # Game over
                 play_sound(uart, GAME_OVER_SOUND)
                 game_over_animation = True
-                pixels_perimeter.fill((255, 0, 0))
+                pixels_perimeter.fill((0, 0, 0))
                 pixels_perimeter.show()
+                pixels_ring.fill((0, 0, 0))
+                pixels_ring.show()
+                ring_twinkle_anim.reset()
                 red_pulse_anim.reset()
                 currently_drained = False
             else:
@@ -286,6 +295,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
         while audio.playing:
             cur_time = time.monotonic()
 
+            ring_twinkle_anim.animate()
             # Update pixel animations
             if game_over_animation:
                 red_pulse_anim.animate()
