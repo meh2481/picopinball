@@ -12,6 +12,7 @@ from adafruit_debouncer import Debouncer
 import random
 import neopixel
 from adafruit_led_animation.animation.rainbowcomet import RainbowComet
+from adafruit_led_animation.animation.comet import Comet
 from adafruit_led_animation.animation.pulse import Pulse
 from adafruit_led_animation.animation.rainbowsparkle import RainbowSparkle
 from adafruit_led_animation import helper
@@ -62,6 +63,7 @@ pixels_ring.show()
 
 # Create neopixel animations
 print("Setting up neopixel animations...")
+# For perimiter neopixels
 pixel_grid = helper.PixelMap.vertical_lines(
     pixels_perimeter, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
 )
@@ -69,7 +71,9 @@ rainbow_comet_v = RainbowComet(
     pixel_grid, speed=.035, tail_length=7, bounce=False
 )
 red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
+# And center ring
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
+ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, bounce=False, num_pixels=24, pixel_start=0)
 
 # Setup globals
 playing = False
@@ -150,6 +154,8 @@ def readline_comm(uart_recv):
                 ball_launch_animation = False
                 pixels_perimeter.fill((176, 13, 0))  # Drain neopixel color is a dark red
                 pixels_perimeter.show()
+                pixels_ring.fill((176, 13, 0))
+                pixels_ring.show()
                 # Delay and then reset animation
                 drained_time = time.monotonic()
                 currently_drained = True
@@ -160,6 +166,8 @@ def readline_comm(uart_recv):
                     ball_launch_animation = False
                     pixels_perimeter.fill((255, 255, 255))
                     pixels_perimeter.show()
+                    pixels_ring.fill((55, 255, 55))
+                    pixels_ring.show()
             elif command == 'GOV':
                 # Game over
                 play_sound(uart, GAME_OVER_SOUND)
@@ -295,17 +303,24 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
         while audio.playing:
             cur_time = time.monotonic()
 
-            ring_twinkle_anim.animate()
             # Update pixel animations
+            if not ball_launch_animation:
+                ring_outer_spin_anim.animate(show=False)
+                # TODO: Inner ring, opposite direction
+                pixels_ring.show()
             if game_over_animation:
                 red_pulse_anim.animate()
             elif ball_launch_animation:
                 rainbow_comet_v.animate()
+                ring_twinkle_anim.animate()
             if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
                 currently_drained = False
                 ball_launch_animation = True
                 pixels_perimeter.fill((0, 0, 0))
                 pixels_perimeter.show()
+                pixels_ring.fill((0, 0, 0))
+                pixels_ring.show()
+                ring_twinkle_anim.reset()
                 rainbow_comet_v.reset()
 
             # Print any data on the UART line from the audio fx board
@@ -329,6 +344,8 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                         ball_launch_animation = False
                         pixels_perimeter.fill((255, 255, 255))
                         pixels_perimeter.show()
+                        pixels_ring.fill((55, 255, 55))
+                        pixels_ring.show()
 
             # Check mission select buttons
             for i in range(len(debounced_mission_buttons)):
