@@ -49,6 +49,7 @@ pixel_pin = board.GP1
 num_pixels = 39
 ORDER = neopixel.GRB
 pixels_perimeter = neopixel.NeoPixel(
+    # Tell it there's one more pixel than there actually is so the animations line up properly
     pixel_pin, num_pixels+1, brightness=0.25, auto_write=False, pixel_order=ORDER
 )
 pixels_perimeter.fill((0, 136, 255))  # Init neopixel color is a dark blue
@@ -64,19 +65,19 @@ pixels_ring.show()
 
 # Create neopixel animations
 print("Setting up neopixel animations...")
-# For perimiter neopixels
-pixel_grid = helper.PixelMap.vertical_lines(
+# For perimeter neopixels
+perimeter_pixel_grid = helper.PixelMap.vertical_lines(
+    # Pretend the perimeter pixels are a grid so we get lines up both sides for this anim
     pixels_perimeter, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
 )
-rainbow_comet_v = RainbowComet(
-    pixel_grid, speed=.035, tail_length=7, bounce=False
-)
-red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
+perimeter_rainbow_comet_anim = RainbowComet(perimeter_pixel_grid, speed=.035, tail_length=7, bounce=False)
+perimeter_red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
 # And center ring
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
 ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, num_pixels=24, pixel_start=0)
 ring_inner_spin_anim = Comet(pixels_ring, color=(0, 0, 255), speed=0.035, ring=True, reverse=True, num_pixels=12, pixel_start=24)
 ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=(255, 0, 0), num_pixels=1, pixel_start=24+12)
+ring_red_pulse_anim = Pulse(pixels_ring, speed=.035, color=(200, 0, 0), period=1.0)
 
 # Setup globals
 playing = False
@@ -111,7 +112,8 @@ def readline_comm(uart_recv):
     global ball_launch_animation
     global game_over_animation
     global ring_twinkle_anim
-    global red_pulse_anim
+    global perimeter_red_pulse_anim
+    global ring_red_pulse_anim
     global pixels_perimeter
     global pixels_ring
     global drained_time
@@ -180,7 +182,8 @@ def readline_comm(uart_recv):
                 pixels_ring.fill((0, 0, 0))
                 pixels_ring.show()
                 ring_twinkle_anim.reset()
-                red_pulse_anim.reset()
+                perimeter_red_pulse_anim.reset()
+                ring_red_pulse_anim.reset()
                 currently_drained = False
             else:
                 print(f'Unknown command: {command}')
@@ -313,9 +316,10 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                 ring_center_blink_anim.animate(show=False)
                 pixels_ring.show()
             if game_over_animation:
-                red_pulse_anim.animate()
+                perimeter_red_pulse_anim.animate()
+                ring_red_pulse_anim.animate()
             elif ball_launch_animation:
-                rainbow_comet_v.animate()
+                perimeter_rainbow_comet_anim.animate()
                 ring_twinkle_anim.animate()
             if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
                 currently_drained = False
@@ -325,7 +329,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                 pixels_ring.fill((0, 0, 0))
                 pixels_ring.show()
                 ring_twinkle_anim.reset()
-                rainbow_comet_v.reset()
+                perimeter_rainbow_comet_anim.reset()
 
             # Print any data on the UART line from the audio fx board
             while uart.in_waiting > 0:
