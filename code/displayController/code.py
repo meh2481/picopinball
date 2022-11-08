@@ -61,18 +61,28 @@ SPINNER_SOUND = 42
 
 DROP_TARGET_RESET_SOUNDS = [DROP_TARGET_RESET_SOUND_2, DROP_TARGET_RESET_SOUND_3]
 
-MODE_STARTUP = 0  # TODO Unused
-MODE_PLAYING = 1
-MODE_GAME_OVER = 2
+# Overall modes for the game
+MODE_STARTUP = 0
+MODE_BALL_LAUNCH = 1
+MODE_PLAYING = 2
+MODE_BALL_DRAIN = 3
+MODE_GAME_OVER = 4
+game_mode = MODE_STARTUP
 
+# Modes for mission progression
+MISSION_STATUS_NONE = 0
+MISSION_STATUS_SELECTED = 1
+MISSION_STATUS_ACCEPTED = 2
+MISSION_STATUS_COMPLETED = 3
+mission_status = MISSION_STATUS_NONE
+cur_mission = None
+num_missions_completed = 0
+
+# Drop target constants
 DROP_TARGET_FAR = 5
 DROP_TARGET_MIDDLE = 6
 DROP_TARGET_CLOSE = 7
 DROP_TARGET_PIN_MAPPING = [DROP_TARGET_FAR, DROP_TARGET_MIDDLE, DROP_TARGET_CLOSE]
-
-mode = MODE_STARTUP
-
-# Other constants
 SERVO_TIMEOUT = 1.0
 
 # Release any resources currently in use for the displays
@@ -83,6 +93,25 @@ print("Initializing LED...")
 led = DigitalInOut(board.GP25)
 led.direction = Direction.OUTPUT
 led.value = True
+
+def set_status_text(str):
+    """Set the status text on the screen."""
+    global text_area_recommendation
+    # Split the string into lines of maximum length 14
+    final_str = ""
+    cur_len = 0
+    for s in str.split(" "):
+        if s == "":
+            continue
+        s_len = len(s)
+        if cur_len + s_len > 14:
+            final_str += "\n" + s
+            cur_len = s_len
+        else:
+            final_str += " " + s
+            cur_len += s_len + 1
+    text_area_recommendation.text = final_str
+    print("Set status text: " + final_str)
 
 
 def init_uart(tx_pin, rx_pin):
@@ -96,13 +125,15 @@ def increase_score(add):
     """Update the score on the screen."""
     global score
     global score_multiplier
-    # global text_area_score
+    global text_area_score
     global uart_sound
     score += add * score_multiplier
     # Reverse because RTL idk what I'm doing
     # TODO: Make this only update once per frame maximum
     text_area_score.text = ''.join(reversed(f"{score}"))
-    send_uart(uart_sound, 'PNT')  # In case there was an IR sensor skipover
+    if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
+        game_mode = MODE_PLAYING
+        send_uart(uart_sound, 'PNT')
 
 
 def play_sound(sound_idx):
@@ -142,10 +173,9 @@ def readline(uart_bus):
     global ir_scores
     global pins
     global aw_devices
-    global mode
+    global game_mode
     global score_multiplier
     global DROP_TARGET_PIN_MAPPING
-    # global text_area_recommendation
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -190,11 +220,9 @@ def readline(uart_bus):
                 board_initialized = command_list[1]
                 if board_initialized == 'solenoidDriver':
                     print("Solenoid driver initialized")
-                    # text_area_recommendation.text = "Solenoid"
                     solenoid_driver_initialized = True
                 elif board_initialized == 'soundController':
                     print("Sound controller initialized")
-                    # text_area_recommendation.text = "Sound"
                     sound_controller_initialized = True
                 if solenoid_driver_initialized and sound_controller_initialized:
                     print("All boards initialized")
@@ -208,10 +236,11 @@ def readline(uart_bus):
                         aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
-                    mode = MODE_PLAYING
+                    game_mode = MODE_BALL_LAUNCH
             elif command == 'IR':
                 print("IR sensor triggered")
                 increase_score(ir_scores[int(command_list[1])])
+                game_mode = MODE_PLAYING
             elif command == 'DT':
                 print("Drop target triggered")
                 aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[int(command_list[1])]], 0)
@@ -315,7 +344,7 @@ group.append(text_group_ball)
 
 # Draw the recommendation text
 text_group_recommendation = displayio.Group(scale=2, x=31, y=232)
-text = "Hit the Attack\nBumpers 8\ntimes"
+text = "Launch the\nball!"
 text_area_recommendation = label.Label(terminalio.FONT, text=text, color=0x727ACA, line_spacing=0.9)
 text_group_recommendation.append(text_area_recommendation)  # Subgroup for text scaling
 group.append(text_group_recommendation)
@@ -354,8 +383,8 @@ hyperspace_sound_list = [
     HYPERSPACE_GRAVITY_WELL_SOUND
 ]
 cur_hyperspace_value = 0
-startup_anim_timer = time.monotonic()
-STARTUP_ANIM_LED_BLINK_TIME = 0.25
+gameover_anim_timer = time.monotonic()
+GAMEOVER_ANIM_LED_BLINK_TIME = 0.75
 NUM_BALLS = 5
 while True:
 
@@ -365,11 +394,10 @@ while True:
     while uart_solenoid.in_waiting > 0:
         readline(uart_solenoid)
 
-    # Blink LEDs randomly during startup animation
-    # TODO: Doesn't really work. Blink randomly during gameover instead
-    if False:
-        if time.monotonic() > startup_anim_timer + STARTUP_ANIM_LED_BLINK_TIME:
-            startup_anim_timer = time.monotonic()
+    # Blink LEDs randomly during gameover
+    if game_mode == MODE_GAME_OVER:
+        if time.monotonic() > gameover_anim_timer + GAMEOVER_ANIM_LED_BLINK_TIME:
+            gameover_anim_timer = time.monotonic()
             for aw_device in aw_devices:
                 for pin in range(len(pins)):
                     aw_device.set_constant_current(pin, 255 if random.random() > 0.5 else 0)
@@ -412,36 +440,41 @@ while True:
         cur_hyperspace_value = 0
         ball += 1
         if ball > NUM_BALLS:
-            mode = MODE_GAME_OVER
+            game_mode = MODE_GAME_OVER
             send_uart(uart_sound, "GOV")
         else:
             text_area_ball.text = str(ball)
             send_uart(uart_solenoid, "RLD")
+            game_mode = MODE_BALL_LAUNCH
+            mission_status = MISSION_STATUS_NONE
+            cur_mission = None
             # TODO: Some other reset things
     
     # Start new game and such
     new_game_button_debouncer.update()
     if new_game_button_debouncer.fell:
         aw_devices[0].set_constant_current(pins[2], 255)
-        if mode == MODE_GAME_OVER:
+        if game_mode == MODE_GAME_OVER:
             # Start a new game
             print("Start new game")
-            mode = MODE_PLAYING
+            game_mode = MODE_BALL_LAUNCH
             score = 0
             ball = 1
             text_area_score.text = str(score)
             text_area_ball.text = str(ball)
-            text_area_recommendation.text = "Hit the Attack\nBumpers 8\ntimes"
+            set_status_text("Launch the ball!")
             cur_hyperspace_value = 0
             score_multiplier = 1
+            mission_status = MISSION_STATUS_NONE
+            cur_mission = None
+            num_missions_completed = 0
             # Reset drop target lights
             for i in range(len(DROP_TARGET_PIN_MAPPING)):
                 aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
             send_uart(uart_solenoid, "RST")
             send_uart(uart_sound, "RST")
             # TODO: Startup anim and delay again
-            send_uart(uart_solenoid, "RLD")
-        elif mode == MODE_PLAYING:
+        elif game_mode == MODE_PLAYING:
             print("New game button pressed; manual reload")
         send_uart(uart_solenoid, "RLD")
     elif new_game_button_debouncer.rose:
