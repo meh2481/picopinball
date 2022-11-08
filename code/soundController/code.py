@@ -14,6 +14,7 @@ import neopixel
 from adafruit_led_animation.animation.rainbowcomet import RainbowComet
 from adafruit_led_animation.animation.comet import Comet
 from adafruit_led_animation.animation.pulse import Pulse
+from adafruit_led_animation.animation.blink import Blink
 from adafruit_led_animation.animation.rainbowsparkle import RainbowSparkle
 from adafruit_led_animation import helper
 
@@ -75,6 +76,7 @@ red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
 ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, num_pixels=24, pixel_start=0)
 ring_inner_spin_anim = Comet(pixels_ring, color=(0, 0, 255), speed=0.035, ring=True, reverse=True, num_pixels=12, pixel_start=24)
+ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=(255, 0, 0), num_pixels=1, pixel_start=24+12)
 
 # Setup globals
 playing = False
@@ -167,7 +169,7 @@ def readline_comm(uart_recv):
                     ball_launch_animation = False
                     pixels_perimeter.fill((255, 255, 255))
                     pixels_perimeter.show()
-                    pixels_ring.fill((55, 255, 55))
+                    pixels_ring.fill((0, 0, 0))
                     pixels_ring.show()
             elif command == 'GOV':
                 # Game over
@@ -308,6 +310,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             if not ball_launch_animation:
                 ring_outer_spin_anim.animate(show=False)
                 ring_inner_spin_anim.animate(show=False)
+                ring_center_blink_anim.animate(show=False)
                 pixels_ring.show()
             if game_over_animation:
                 red_pulse_anim.animate()
@@ -345,7 +348,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                         ball_launch_animation = False
                         pixels_perimeter.fill((255, 255, 255))
                         pixels_perimeter.show()
-                        pixels_ring.fill((55, 255, 55))
+                        pixels_ring.fill((0, 0, 0))
                         pixels_ring.show()
 
             # Check mission select buttons
