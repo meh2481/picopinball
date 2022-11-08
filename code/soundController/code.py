@@ -73,7 +73,8 @@ rainbow_comet_v = RainbowComet(
 red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
 # And center ring
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
-ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, bounce=False, num_pixels=24, pixel_start=0)
+ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, num_pixels=24, pixel_start=0)
+ring_inner_spin_anim = Comet(pixels_ring, color=(0, 0, 255), speed=0.035, ring=True, reverse=True, num_pixels=12, pixel_start=24)
 
 # Setup globals
 playing = False
@@ -306,7 +307,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             # Update pixel animations
             if not ball_launch_animation:
                 ring_outer_spin_anim.animate(show=False)
-                # TODO: Inner ring, opposite direction
+                ring_inner_spin_anim.animate(show=False)
                 pixels_ring.show()
             if game_over_animation:
                 red_pulse_anim.animate()
