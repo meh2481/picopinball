@@ -310,17 +310,17 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             cur_time = time.monotonic()
 
             # Update pixel animations
-            if not ball_launch_animation:
-                ring_outer_spin_anim.animate(show=False)
-                ring_inner_spin_anim.animate(show=False)
-                ring_center_blink_anim.animate(show=False)
-                pixels_ring.show()
             if game_over_animation:
                 perimeter_red_pulse_anim.animate()
                 ring_red_pulse_anim.animate()
             elif ball_launch_animation:
                 perimeter_rainbow_comet_anim.animate()
                 ring_twinkle_anim.animate()
+            else:
+                ring_outer_spin_anim.animate(show=False)
+                ring_inner_spin_anim.animate(show=False)
+                ring_center_blink_anim.animate(show=False)
+                pixels_ring.show()
             if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
                 currently_drained = False
                 ball_launch_animation = True

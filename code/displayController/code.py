@@ -85,6 +85,10 @@ DROP_TARGET_CLOSE = 7
 DROP_TARGET_PIN_MAPPING = [DROP_TARGET_FAR, DROP_TARGET_MIDDLE, DROP_TARGET_CLOSE]
 SERVO_TIMEOUT = 1.0
 
+# Lights constants
+pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expanders
+LIGHT_BALL_DEPLOY = [0, pins[8]]
+
 # Release any resources currently in use for the displays
 displayio.release_displays()
 
@@ -127,6 +131,7 @@ def increase_score(add):
     global score_multiplier
     global text_area_score
     global uart_sound
+    global aw_devices
     score += add * score_multiplier
     # Reverse because RTL idk what I'm doing
     # TODO: Make this only update once per frame maximum
@@ -134,6 +139,8 @@ def increase_score(add):
     if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
         game_mode = MODE_PLAYING
         send_uart(uart_sound, 'PNT')
+        # Turn off ball deploy light
+        aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
 
 
 def play_sound(sound_idx):
@@ -237,10 +244,14 @@ def readline(uart_bus):
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
                     game_mode = MODE_BALL_LAUNCH
+                    # Turn on ball deploy light
+                    aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
             elif command == 'IR':
                 print("IR sensor triggered")
                 increase_score(ir_scores[int(command_list[1])])
                 game_mode = MODE_PLAYING
+                # Turn off ball deploy light
+                aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
             elif command == 'DT':
                 print("Drop target triggered")
                 aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[int(command_list[1])]], 0)
@@ -370,7 +381,6 @@ uart_solenoid = init_uart(board.GP4, board.GP5)
 score = 0
 ball = 1
 n = 0
-pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expander
 ir_scores = [100, 500, 200]  # Score values for each IR sensor
 NUM_PINS = len(pins)
 PIN_DELAY = 750
@@ -448,6 +458,8 @@ while True:
             game_mode = MODE_BALL_LAUNCH
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
+            # Turn on ball deploy light
+            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(pins[LIGHT_BALL_DEPLOY[1]], 255)
             # TODO: Some other reset things
     
     # Start new game and such
@@ -458,6 +470,8 @@ while True:
             # Start a new game
             print("Start new game")
             game_mode = MODE_BALL_LAUNCH
+            # Turn on ball deploy light
+            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(pins[LIGHT_BALL_DEPLOY[1]], 255)
             score = 0
             ball = 1
             text_area_score.text = str(score)
