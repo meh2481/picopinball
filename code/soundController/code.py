@@ -158,7 +158,6 @@ def readline_comm(uart_recv):
                 led_anim_state = ANIM_STATE_DRAINED
                 pixels_perimeter.fill((176, 13, 0))  # Drain neopixel color is a dark red
                 pixels_perimeter.show()
-                # TODO: Stop any current anims and start drain anim
                 pixels_ring.fill((176, 13, 0))
                 pixels_ring.show()
                 # Delay and then reset animation
