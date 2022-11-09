@@ -72,11 +72,16 @@ game_mode = MODE_STARTUP
 # Modes for mission progression
 MISSION_STATUS_NONE = 0
 MISSION_STATUS_SELECTED = 1
-MISSION_STATUS_ACCEPTED = 2
+MISSION_STATUS_ACTIVE = 2
 MISSION_STATUS_COMPLETED = 3
 mission_status = MISSION_STATUS_NONE
 cur_mission = None
 num_missions_completed = 0
+MISSION_NAMES = [
+    'Engine Maintenance',
+    'Thruster Tests',
+    'Orbital Refueling',
+]
 
 # Drop target constants
 DROP_TARGET_FAR = 5
@@ -87,7 +92,7 @@ SERVO_TIMEOUT = 1.0
 
 # Lights constants
 pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expanders
-LIGHT_BALL_DEPLOY = [0, pins[8]]
+LIGHT_BALL_DEPLOY = [0, pins[8]] # First device, ninth pin
 
 # Release any resources currently in use for the displays
 displayio.release_displays()
@@ -139,6 +144,7 @@ def increase_score(add):
     text_area_score.text = ''.join(reversed(f"{score}"))
     if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
         game_mode = MODE_PLAYING
+        set_status_text("Hit Mission Select Targets")
         send_uart(uart_sound, 'PNT')
         # Turn off ball deploy light
         aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
@@ -183,7 +189,8 @@ def readline(uart_bus):
     global aw_devices
     global game_mode
     global score_multiplier
-    global DROP_TARGET_PIN_MAPPING
+    global cur_mission
+    global mission_status
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -197,16 +204,30 @@ def readline(uart_bus):
                 print(f"Hyperspace launched {cur_hyperspace_value + 1}")
                 increase_score((cur_hyperspace_value + 1) * 100)
                 play_sound(hyperspace_sound_list[cur_hyperspace_value])
-                cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
                 cur_hyperspace_trigger_timer = time.monotonic()
+                if mission_status == MISSION_STATUS_SELECTED:
+                    set_status_text('Mission Accepted')
+                    mission_status = MISSION_STATUS_ACTIVE
+                    # TODO: Update mission status text on delay
+                elif cur_hyperspace_value == 4:
+                    set_status_text('Jackpot Awarded')
+                    increase_score(1500)
+                else:
+                    set_status_text('Hyperspace Launch')
+                cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
             elif command == 'DRN':
                 # Ball drained
                 print("Ball drained!")
+                game_mode = MODE_BALL_DRAIN
+                # TODO: Crash bonus based on... something idk
+                set_status_text(f"Crash Bonus {1000 * score_multiplier}")
+                increase_score(1000)
                 # Relay to sound board
                 send_uart(uart_sound, command)
                 # Wait for a bit before reloading
                 ball_drained_timer = time.monotonic()
-                # TODO: Crash bonus based on ball progression
+                cur_mission = None
+                mission_status = MISSION_STATUS_NONE
             elif command == 'DTR':
                 # Drop target reset
                 print("Drop target reset!")
@@ -214,15 +235,18 @@ def readline(uart_bus):
                 drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
                 increase_score(1000)
                 score_multiplier = min(score_multiplier + 1, 5)
+                set_status_text(f"Score Multiplier {score_multiplier}x")
             elif command == 'BTN':
                 button_num = int(command_list[1])
                 if button_num == 0:
                     print("Select first mission")
-                    # TODO: Do something with this info
                 elif button_num == 1:
                     print("Select second mission")
                 elif button_num == 2:
                     print("Select third mission")
+                set_status_text(f"Launch to Perform {MISSION_NAMES[button_num]}")
+                cur_mission = button_num
+                mission_status = MISSION_STATUS_SELECTED
                 increase_score(50)
             elif command == 'INI':
                 board_initialized = command_list[1]
@@ -245,12 +269,14 @@ def readline(uart_bus):
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
                     game_mode = MODE_BALL_LAUNCH
+                    set_status_text("Launch Ball")
                     # Turn on ball deploy light
                     aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
             elif command == 'IR':
                 print("IR sensor triggered")
                 increase_score(ir_scores[int(command_list[1])])
                 game_mode = MODE_PLAYING
+                set_status_text("Hit Mission Select Targets")
                 # Turn off ball deploy light
                 aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
             elif command == 'DT':
@@ -452,11 +478,13 @@ while True:
         ball += 1
         if ball > NUM_BALLS:
             game_mode = MODE_GAME_OVER
+            set_status_text("Game Over")
             send_uart(uart_sound, "GOV")
         else:
             text_area_ball.text = str(ball)
             send_uart(uart_solenoid, "RLD")
             game_mode = MODE_BALL_LAUNCH
+            set_status_text("Launch Ball")
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             # Turn on ball deploy light
@@ -477,7 +505,7 @@ while True:
             ball = 1
             text_area_score.text = str(score)
             text_area_ball.text = str(ball)
-            set_status_text("Launch the ball!")
+            set_status_text("Launch Ball")
             cur_hyperspace_value = 0
             score_multiplier = 1
             mission_status = MISSION_STATUS_NONE
