@@ -38,12 +38,16 @@ wave_file = open("sfx/SOUND1.WAV", "rb")
 wave = WaveFile(wave_file)
 audio.play(wave)
 
+ANIM_STATE_LAUNCHING = 0
+ANIM_STATE_DRAINED = 1
+ANIM_STATE_GAME_OVER = 2
+ANIM_STATE_PLAYING = 3
+ANIM_STATE_STARTUP = 4
+led_anim_state = ANIM_STATE_LAUNCHING
+
 # Next, init board perimeter neopixels to light up the board
 print("Initializing neopixel perimeter...")
-ball_launch_animation = True
-game_over_animation = False
 drained_time = 0
-currently_drained = False
 DRAINED_SOUND_LEN = 2.5
 pixel_pin = board.GP1
 num_pixels = 39
@@ -108,16 +112,13 @@ def readline_comm(uart_recv):
     global uart
     global audio
     global decoder
-    # TODO: Animation state machine instead of multiple global vars
-    global ball_launch_animation
-    global game_over_animation
+    global led_anim_state
     global ring_twinkle_anim
     global perimeter_red_pulse_anim
     global ring_red_pulse_anim
     global pixels_perimeter
     global pixels_ring
     global drained_time
-    global currently_drained
     data = uart_recv.readline()
     if data is not None:
         # convert bytearray to string
@@ -135,10 +136,8 @@ def readline_comm(uart_recv):
                 print("Got reset command")
                 play_sound(uart, STARTUP_SOUND)
                 # TODO: Delay for startup sound to finish
-                ball_launch_animation = True
-                game_over_animation = False
+                led_anim_state = ANIM_STATE_LAUNCHING
                 drained_time = 0
-                currently_drained = False
                 pixels_perimeter.fill((0, 0, 0))
                 pixels_perimeter.show()
                 pixels_ring.fill((15, 255, 120))
@@ -156,7 +155,7 @@ def readline_comm(uart_recv):
                     print("Invalid MUS command")
             elif command == 'DRN':
                 play_sound(uart, BALL_DRAINED_SOUND)
-                ball_launch_animation = False
+                led_anim_state = ANIM_STATE_DRAINED
                 pixels_perimeter.fill((176, 13, 0))  # Drain neopixel color is a dark red
                 pixels_perimeter.show()
                 # TODO: Stop any current anims and start drain anim
@@ -164,12 +163,11 @@ def readline_comm(uart_recv):
                 pixels_ring.show()
                 # Delay and then reset animation
                 drained_time = time.monotonic()
-                currently_drained = True
             elif command == 'PNT':
                 # In case IR sensors don't trigger, cancel the launching animation as soon as anything else happens
-                if ball_launch_animation:
+                if led_anim_state == ANIM_STATE_LAUNCHING:
                     # Cancel ball launching animation
-                    ball_launch_animation = False
+                    led_anim_state = ANIM_STATE_PLAYING
                     pixels_perimeter.fill((255, 255, 255))
                     pixels_perimeter.show()
                     pixels_ring.fill((0, 0, 0))
@@ -177,7 +175,7 @@ def readline_comm(uart_recv):
             elif command == 'GOV':
                 # Game over
                 play_sound(uart, GAME_OVER_SOUND)
-                game_over_animation = True
+                led_anim_state = ANIM_STATE_GAME_OVER
                 pixels_perimeter.fill((0, 0, 0))
                 pixels_perimeter.show()
                 pixels_ring.fill((0, 0, 0))
@@ -185,7 +183,6 @@ def readline_comm(uart_recv):
                 ring_twinkle_anim.reset()
                 perimeter_red_pulse_anim.reset()
                 ring_red_pulse_anim.reset()
-                currently_drained = False
             else:
                 print(f'Unknown command: {command}')
 
@@ -210,7 +207,7 @@ def init_uart():
     readline(uart)  # File count
 
     # DEBUG: List tracks
-    # Leaving this in because the sound controller swallows the first sound play command otherwise?
+    # Leaving this in because the FX board swallows the first sound play command otherwise, it seems
     uart.write(b"L\r\n")
     return uart
 
@@ -312,20 +309,19 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             cur_time = time.monotonic()
 
             # Update pixel animations
-            if game_over_animation:
+            if led_anim_state == ANIM_STATE_GAME_OVER:
                 perimeter_red_pulse_anim.animate()
                 ring_red_pulse_anim.animate()
-            elif ball_launch_animation:
+            elif led_anim_state == ANIM_STATE_LAUNCHING:
                 perimeter_rainbow_comet_anim.animate()
                 ring_twinkle_anim.animate()
-            else:
+            elif led_anim_state == ANIM_STATE_PLAYING:
                 ring_outer_spin_anim.animate(show=False)
                 ring_inner_spin_anim.animate(show=False)
                 ring_center_blink_anim.animate(show=False)
                 pixels_ring.show()
-            if currently_drained and cur_time - drained_time > DRAINED_SOUND_LEN:
-                currently_drained = False
-                ball_launch_animation = True
+            elif led_anim_state == ANIM_STATE_DRAINED and cur_time - drained_time > DRAINED_SOUND_LEN:
+                led_anim_state = ANIM_STATE_LAUNCHING
                 pixels_perimeter.fill((0, 0, 0))
                 pixels_perimeter.show()
                 pixels_ring.fill((0, 0, 0))
@@ -350,8 +346,8 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                     ir_sensors[i].count = 0
                     send_uart(f'IR {i}')
                     # Cancel ball launching animation
-                    if ball_launch_animation:
-                        ball_launch_animation = False
+                    if led_anim_state == ANIM_STATE_LAUNCHING:
+                        led_anim_state = ANIM_STATE_PLAYING
                         pixels_perimeter.fill((255, 255, 255))
                         pixels_perimeter.show()
                         pixels_ring.fill((0, 0, 0))
