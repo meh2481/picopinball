@@ -132,6 +132,7 @@ def increase_score(add):
     global text_area_score
     global uart_sound
     global aw_devices
+    global game_mode
     score += add * score_multiplier
     # Reverse because RTL idk what I'm doing
     # TODO: Make this only update once per frame maximum
