@@ -112,7 +112,7 @@ def set_status_text(str):
             final_str += "\n" + s
             cur_len = s_len
         else:
-            final_str += " " + s
+            final_str += " " + s if cur_len > 0 else s
             cur_len += s_len + 1
     text_area_recommendation.text = final_str
     print("Set status text: " + final_str)
@@ -356,7 +356,7 @@ group.append(text_group_ball)
 
 # Draw the recommendation text
 text_group_recommendation = displayio.Group(scale=2, x=31, y=232)
-text = "Launch the\nball!"
+text = "Starting Up..."
 text_area_recommendation = label.Label(terminalio.FONT, text=text, color=0x727ACA, line_spacing=0.9)
 text_group_recommendation.append(text_area_recommendation)  # Subgroup for text scaling
 group.append(text_group_recommendation)
@@ -460,7 +460,7 @@ while True:
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             # Turn on ball deploy light
-            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(pins[LIGHT_BALL_DEPLOY[1]], 255)
+            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
             # TODO: Some other reset things
     
     # Start new game and such
@@ -472,7 +472,7 @@ while True:
             print("Start new game")
             game_mode = MODE_BALL_LAUNCH
             # Turn on ball deploy light
-            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(pins[LIGHT_BALL_DEPLOY[1]], 255)
+            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
             score = 0
             ball = 1
             text_area_score.text = str(score)

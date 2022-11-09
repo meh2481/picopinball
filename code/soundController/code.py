@@ -210,7 +210,8 @@ def init_uart():
     readline(uart)  # File count
 
     # DEBUG: List tracks
-    # uart.write(b"L\r\n")
+    # Leaving this in because the sound controller swallows the first sound play command otherwise?
+    uart.write(b"L\r\n")
     return uart
 
 
