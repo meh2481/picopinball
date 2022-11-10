@@ -86,7 +86,7 @@ MISSION_NAMES = [
     'Thruster Tests',
     'Orbital Refueling',
 ]
-MISSION_HIT_COUNTS = [5, 6, 3]
+MISSION_HIT_COUNTS = [5, 6, 4]
 MISSION_TARGETS = ['PB', 'SLG', 'HYP']
 MISSION_STATUS_TEXT_PLURAL = [
     '{} Engine Bumper Hits Left',
