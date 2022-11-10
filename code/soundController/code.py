@@ -13,6 +13,7 @@ import random
 import neopixel
 from adafruit_led_animation.animation.rainbowcomet import RainbowComet
 from adafruit_led_animation.animation.comet import Comet
+from adafruit_led_animation.animation.chase import Chase
 from adafruit_led_animation.animation.pulse import Pulse
 from adafruit_led_animation.animation.blink import Blink
 from adafruit_led_animation.animation.rainbowsparkle import RainbowSparkle
@@ -78,7 +79,8 @@ perimeter_rainbow_comet_anim = RainbowComet(perimeter_pixel_grid, speed=.035, ta
 perimeter_red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
 # And center ring
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
-ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, num_pixels=24, pixel_start=0)
+# ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, num_pixels=24, pixel_start=0)
+ring_outer_spin_anim = Chase(pixels_ring, color=(255, 0, 255), speed=0.035, size=6, spacing=24-6, num_pixels=24, pixel_start=0)
 ring_inner_spin_anim = Comet(pixels_ring, color=(0, 0, 255), speed=0.035, ring=True, reverse=True, num_pixels=12, pixel_start=24)
 ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=(255, 0, 0), num_pixels=1, pixel_start=24+12)
 ring_red_pulse_anim = Pulse(pixels_ring, speed=.035, color=(200, 0, 0), period=1.0)
