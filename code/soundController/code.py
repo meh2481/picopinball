@@ -29,6 +29,9 @@ SHOOT_SOUNDS = [SHOOT_SOUND, SHOOT_SOUND_2, SHOOT_SOUND_3]
 BALL_DRAINED_SOUND = 19
 STARTUP_SOUND = 0
 GAME_OVER_SOUND = 28
+MISSION_COMPLETE_PROMOTION_SOUND = 35
+MISSION_ACCEPTED_SOUND = 16
+MISSION_COMPLETE_SOUND = 6
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
@@ -80,8 +83,11 @@ perimeter_red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0)
 # And center ring
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
 # ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, num_pixels=24, pixel_start=0)
-ring_outer_spin_anim = Chase(pixels_ring, color=(255, 0, 255), speed=0.035, size=6, spacing=24-6, num_pixels=24, pixel_start=0)
-ring_inner_spin_anim = Comet(pixels_ring, color=(0, 0, 255), speed=0.035, ring=True, reverse=True, num_pixels=12, pixel_start=24)
+ring_outer_spin_anim = Chase(pixels_ring, color=(255, 0, 255), speed=0.035, size=0, spacing=24, num_pixels=24, pixel_start=0)
+# ring_outer_spin_anim.freeze()
+# ring_inner_spin_anim = Comet(pixels_ring, color=(0, 0, 255), speed=0.035, ring=True, reverse=True, num_pixels=12, pixel_start=24)
+ring_inner_spin_anim = Chase(pixels_ring, color=(0, 0, 255), speed=0.035, reverse=True, size=1, spacing=11, num_pixels=12, pixel_start=24)
+# ring_inner_spin_anim.freeze()
 ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=(255, 0, 0), num_pixels=1, pixel_start=24+12)
 ring_red_pulse_anim = Pulse(pixels_ring, speed=.035, color=(200, 0, 0), period=1.0)
 
@@ -89,6 +95,8 @@ ring_red_pulse_anim = Pulse(pixels_ring, speed=.035, color=(200, 0, 0), period=1
 playing = False
 playing_stop_timer = 0
 uart = None
+num_complete_missions = 0
+cur_rank = 0
 
 # LED for testing
 print("Initializing LED...")
@@ -121,6 +129,10 @@ def readline_comm(uart_recv):
     global pixels_perimeter
     global pixels_ring
     global drained_time
+    global num_complete_missions
+    global cur_rank
+    global ring_outer_spin_anim
+    global ring_inner_spin_anim
     data = uart_recv.readline()
     if data is not None:
         # convert bytearray to string
@@ -158,6 +170,11 @@ def readline_comm(uart_recv):
             elif command == 'DRN':
                 play_sound(uart, BALL_DRAINED_SOUND)
                 led_anim_state = ANIM_STATE_DRAINED
+                # Reset animations for missions
+                # ring_inner_spin_anim.reset()
+                # ring_outer_spin_anim.reset()
+                # ring_outer_spin_anim.freeze()
+                # ring_inner_spin_anim.freeze()
                 pixels_perimeter.fill((176, 13, 0))  # Drain neopixel color is a dark red
                 pixels_perimeter.show()
                 pixels_ring.fill((176, 13, 0))
@@ -184,6 +201,36 @@ def readline_comm(uart_recv):
                 ring_twinkle_anim.reset()
                 perimeter_red_pulse_anim.reset()
                 ring_red_pulse_anim.reset()
+                num_complete_missions = 0
+                cur_rank = 0
+            elif command == 'ACC':
+                play_sound(uart, MISSION_ACCEPTED_SOUND)
+                # ring_outer_spin_anim.resume()
+                # if num_complete_missions == 2:
+                #     ring_inner_spin_anim.resume()
+            elif command == 'MSN':
+                # Mission completed
+                play_sound(uart, MISSION_COMPLETE_SOUND)
+                # TODO: Flashing anim for mission complete
+                num_complete_missions = int(command_list[1])
+                ring_outer_spin_anim._size = 8 * num_complete_missions
+                ring_outer_spin_anim._spacing = 24 - ring_outer_spin_anim._size
+                # ring_outer_spin_anim.reset()
+                # ring_outer_spin_anim.freeze()
+            elif command == 'RNK':
+                # Rank changed
+                play_sound(uart, MISSION_COMPLETE_PROMOTION_SOUND)
+                # TODO: Flashing anim for new rank
+                cur_rank = int(command_list[1])
+                num_complete_missions = 0
+                ring_inner_spin_anim._size = cur_rank + 1
+                ring_inner_spin_anim._spacing = 12 - ring_inner_spin_anim._size
+                ring_outer_spin_anim._size = 0
+                ring_outer_spin_anim._spacing = 24
+                # ring_inner_spin_anim.reset()
+                # ring_outer_spin_anim.reset()
+                # ring_outer_spin_anim.freeze()
+                # ring_inner_spin_anim.freeze()
             else:
                 print(f'Unknown command: {command}')
 
@@ -264,9 +311,9 @@ def send_uart(str):
     uart_comm.write(bytearray(write_str, "utf-8"))
 
 # Init Wav decoder for music
-# decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"))
+decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"), bytearray(1024))
 # Init MP3 decoder for music
-decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
+# decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
 # Init switches for mission select buttons
 mission_select_1 = digitalio.DigitalInOut(board.GP21)

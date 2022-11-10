@@ -244,7 +244,7 @@ def readline(uart_bus):
                     set_status_text('Mission Accepted')
                     mission_status = MISSION_STATUS_ACTIVE
                     mission_hits_left = MISSION_HIT_COUNTS[cur_mission]
-                    play_sound(MISSION_ACCEPTED_SOUND)
+                    send_uart(uart_sound, 'ACC')
                     # TODO: Update mission status text on delay
                 elif cur_hyperspace_value == 4:
                     set_status_text('Jackpot Awarded')
@@ -354,16 +354,16 @@ def readline(uart_bus):
                         increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
                         num_missions_completed += 1
                         if num_missions_completed == MISSIONS_PER_RANK:
-                            play_sound(MISSION_COMPLETE_PROMOTION_SOUND)
                             crash_bonus += 1000 * cur_rank
                             num_missions_completed = 0
                             cur_rank += 1
                             cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
                             set_status_text(f"Promoted to {RANK_NAMES[cur_rank]}")
+                            send_uart(uart_sound, f'RNK {cur_rank}')
                         else:
                             set_status_text("Mission Completed")
                             crash_bonus += 550 * cur_rank
-                            play_sound(MISSION_COMPLETE_SOUND)
+                            send_uart(uart_sound, f'MSN {num_missions_completed}')
                     elif mission_hits_left == 1:
                         set_status_text(MISSION_STATUS_TEXT_SINGULAR[cur_mission])
                     else:
