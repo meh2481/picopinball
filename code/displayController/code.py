@@ -224,7 +224,8 @@ def readline(uart_bus):
                 print(f"Hyperspace launched {cur_hyperspace_value + 1}")
                 increase_score((cur_hyperspace_value + 1) * 100)
                 if mission_status != MISSION_STATUS_SELECTED:
-                    play_sound(hyperspace_sound_list[cur_hyperspace_value])
+                    if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission] or mission_hits_left != 1:
+                        play_sound(hyperspace_sound_list[cur_hyperspace_value])
                 cur_hyperspace_trigger_timer = time.monotonic()
                 if mission_status == MISSION_STATUS_SELECTED:
                     set_status_text('Mission Accepted')
