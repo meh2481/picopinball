@@ -77,11 +77,28 @@ MISSION_STATUS_COMPLETED = 3
 mission_status = MISSION_STATUS_NONE
 cur_mission = None
 num_missions_completed = 0
+cur_rank = 0
+mission_hits_left = 0
+DEFAULT_CRASH_BONUS = 1000
+crash_bonus = DEFAULT_CRASH_BONUS
 MISSION_NAMES = [
     'Engine Maintenance',
     'Thruster Tests',
     'Orbital Refueling',
 ]
+MISSION_HIT_COUNTS = [5, 6, 3]
+MISSION_TARGETS = ['PB', 'SLG', 'HYP']
+MISSION_STATUS_TEXT_PLURAL = [
+    '{} Engine Bumper Hits Left',
+    '{} Slingshot Thruster Hits Left',
+    '{} Hyperspace Launches Left',
+]
+MISSION_STATUS_TEXT_SINGULAR = [
+    '1 Engine Bumper Hit Left',
+    '1 Slingshot Thruster Hit Left',
+    '1 Hyperspace Launch Left',
+]
+MISSION_REWARDS = [50_000, 30_000, 25_000]
 
 # Drop target constants
 DROP_TARGET_FAR = 5
@@ -190,7 +207,10 @@ def readline(uart_bus):
     global game_mode
     global score_multiplier
     global cur_mission
+    global mission_hits_left
     global mission_status
+    global crash_bonus
+    global num_missions_completed
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -203,11 +223,14 @@ def readline(uart_bus):
                 # Hyperspace
                 print(f"Hyperspace launched {cur_hyperspace_value + 1}")
                 increase_score((cur_hyperspace_value + 1) * 100)
-                play_sound(hyperspace_sound_list[cur_hyperspace_value])
+                if mission_status != MISSION_STATUS_SELECTED:
+                    play_sound(hyperspace_sound_list[cur_hyperspace_value])
                 cur_hyperspace_trigger_timer = time.monotonic()
                 if mission_status == MISSION_STATUS_SELECTED:
                     set_status_text('Mission Accepted')
                     mission_status = MISSION_STATUS_ACTIVE
+                    mission_hits_left = MISSION_HIT_COUNTS[cur_mission]
+                    play_sound(MISSION_ACCEPTED_SOUND)
                     # TODO: Update mission status text on delay
                 elif cur_hyperspace_value == 4:
                     set_status_text('Jackpot Awarded')
@@ -219,9 +242,8 @@ def readline(uart_bus):
                 # Ball drained
                 print("Ball drained!")
                 game_mode = MODE_BALL_DRAIN
-                # TODO: Crash bonus based on... something idk
-                set_status_text(f"Crash Bonus {1000 * score_multiplier}")
-                increase_score(1000)
+                set_status_text(f"Crash Bonus {crash_bonus * score_multiplier}")
+                increase_score(crash_bonus)
                 # Relay to sound board
                 send_uart(uart_sound, command)
                 # Wait for a bit before reloading
@@ -234,6 +256,7 @@ def readline(uart_bus):
                 # Delay before playing sound
                 drop_target_reset_sound_timer = time.monotonic() + DROP_TARGET_RESET_SOUND_DELAY
                 increase_score(1000)
+                crash_bonus += 1000
                 score_multiplier = min(score_multiplier + 1, 5)
                 set_status_text(f"Score Multiplier {score_multiplier}x")
             elif command == 'BTN':
@@ -248,6 +271,7 @@ def readline(uart_bus):
                 cur_mission = button_num
                 mission_status = MISSION_STATUS_SELECTED
                 increase_score(50)
+                crash_bonus += 25
             elif command == 'INI':
                 board_initialized = command_list[1]
                 if board_initialized == 'solenoidDriver':
@@ -269,12 +293,15 @@ def readline(uart_bus):
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
                     game_mode = MODE_BALL_LAUNCH
+                    crash_bonus = DEFAULT_CRASH_BONUS
                     set_status_text("Launch Ball")
                     # Turn on ball deploy light
                     aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
             elif command == 'IR':
                 print("IR sensor triggered")
                 increase_score(ir_scores[int(command_list[1])])
+                if game_mode != MODE_BALL_LAUNCH:
+                    crash_bonus += 100
                 game_mode = MODE_PLAYING
                 set_status_text("Hit Mission Select Targets")
                 # Turn off ball deploy light
@@ -303,7 +330,22 @@ def readline(uart_bus):
                 aw_devices[0].set_constant_current(pins[4], 0)
             else:
                 print(data_string, end="")
-
+            
+            # Test for mission update
+            if mission_status == MISSION_STATUS_ACTIVE:
+                if command == MISSION_TARGETS[cur_mission]:
+                    mission_hits_left -= 1
+                    if mission_hits_left == 0:
+                        mission_status = MISSION_STATUS_COMPLETED
+                        set_status_text("Mission Completed")
+                        increase_score(MISSION_REWARDS[cur_mission])
+                        play_sound(MISSION_COMPLETE_SOUND)
+                        num_missions_completed += 1
+                        crash_bonus += 550
+                    elif mission_hits_left == 1:
+                        set_status_text(MISSION_STATUS_TEXT_SINGULAR[cur_mission])
+                    else:
+                        set_status_text(MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left))
 
 def rand_ship_time():
     """Return a random time for the servo to update next."""
@@ -484,6 +526,7 @@ while True:
             text_area_ball.text = str(ball)
             send_uart(uart_solenoid, "RLD")
             game_mode = MODE_BALL_LAUNCH
+            crash_bonus = DEFAULT_CRASH_BONUS
             set_status_text("Launch Ball")
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
@@ -499,6 +542,7 @@ while True:
             # Start a new game
             print("Start new game")
             game_mode = MODE_BALL_LAUNCH
+            crash_bonus = DEFAULT_CRASH_BONUS
             # Turn on ball deploy light
             aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
             score = 0
