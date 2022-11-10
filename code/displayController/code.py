@@ -99,6 +99,18 @@ MISSION_STATUS_TEXT_SINGULAR = [
     '1 Hyperspace Launch Left',
 ]
 MISSION_REWARDS = [50_000, 30_000, 25_000]
+MISSIONS_PER_RANK = 3
+RANK_NAMES = [
+    'Cadet',
+    'Ensign',
+    'Lieutenant',
+    'Captain',
+    'Lieutenant Commander',
+    'Commander',
+    'Commodore',
+    'Admiral',
+    'Fleet Admiral',
+]
 
 # Drop target constants
 DROP_TARGET_FAR = 5
@@ -211,6 +223,7 @@ def readline(uart_bus):
     global mission_status
     global crash_bonus
     global num_missions_completed
+    global cur_rank
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -338,11 +351,19 @@ def readline(uart_bus):
                     mission_hits_left -= 1
                     if mission_hits_left == 0:
                         mission_status = MISSION_STATUS_COMPLETED
-                        set_status_text("Mission Completed")
-                        increase_score(MISSION_REWARDS[cur_mission])
-                        play_sound(MISSION_COMPLETE_SOUND)
+                        increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
                         num_missions_completed += 1
-                        crash_bonus += 550
+                        if num_missions_completed == MISSIONS_PER_RANK:
+                            play_sound(MISSION_COMPLETE_PROMOTION_SOUND)
+                            crash_bonus += 1000 * cur_rank
+                            num_missions_completed = 0
+                            cur_rank += 1
+                            cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
+                            set_status_text(f"Promoted to {RANK_NAMES[cur_rank]}")
+                        else:
+                            set_status_text("Mission Completed")
+                            crash_bonus += 550 * cur_rank
+                            play_sound(MISSION_COMPLETE_SOUND)
                     elif mission_hits_left == 1:
                         set_status_text(MISSION_STATUS_TEXT_SINGULAR[cur_mission])
                     else:
