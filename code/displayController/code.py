@@ -73,7 +73,6 @@ game_mode = MODE_STARTUP
 MISSION_STATUS_NONE = 0
 MISSION_STATUS_SELECTED = 1
 MISSION_STATUS_ACTIVE = 2
-MISSION_STATUS_COMPLETED = 3
 mission_status = MISSION_STATUS_NONE
 cur_mission = None
 num_missions_completed = 0
@@ -274,16 +273,11 @@ def readline(uart_bus):
                 score_multiplier = min(score_multiplier + 1, 5)
                 set_status_text(f"Score Multiplier {score_multiplier}x")
             elif command == 'BTN':
-                button_num = int(command_list[1])
-                if button_num == 0:
-                    print("Select first mission")
-                elif button_num == 1:
-                    print("Select second mission")
-                elif button_num == 2:
-                    print("Select third mission")
-                set_status_text(f"Launch to Perform {MISSION_NAMES[button_num]}")
-                cur_mission = button_num
-                mission_status = MISSION_STATUS_SELECTED
+                if mission_status == MISSION_STATUS_NONE or mission_status == MISSION_STATUS_SELECTED:
+                    button_num = int(command_list[1])
+                    set_status_text(f"Launch to Perform {MISSION_NAMES[button_num]}")
+                    cur_mission = button_num
+                    mission_status = MISSION_STATUS_SELECTED
                 increase_score(50)
                 crash_bonus += 25
             elif command == 'INI':
@@ -350,7 +344,7 @@ def readline(uart_bus):
                 if command == MISSION_TARGETS[cur_mission]:
                     mission_hits_left -= 1
                     if mission_hits_left == 0:
-                        mission_status = MISSION_STATUS_COMPLETED
+                        mission_status = MISSION_STATUS_NONE
                         increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
                         num_missions_completed += 1
                         if num_missions_completed == MISSIONS_PER_RANK:
