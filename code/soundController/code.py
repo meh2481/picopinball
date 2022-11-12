@@ -17,6 +17,7 @@ from adafruit_led_animation.animation.chase import Chase
 from adafruit_led_animation.animation.pulse import Pulse
 from adafruit_led_animation.animation.blink import Blink
 from adafruit_led_animation.animation.rainbowsparkle import RainbowSparkle
+from adafruit_led_animation.animation.sparkle import Sparkle
 from adafruit_led_animation import helper
 
 # Constants
@@ -35,7 +36,7 @@ MISSION_COMPLETE_SOUND = 6
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
-audio = audiopwmio.PWMAudioOut(board.GP0)
+audio = audiopwmio.PWMAudioOut(board.GP0, quiescent_value=0)
 
 # First things first, play startup sound
 wave_file = open("sfx/SOUND1.WAV", "rb")
@@ -47,6 +48,12 @@ ANIM_STATE_DRAINED = 1
 ANIM_STATE_GAME_OVER = 2
 ANIM_STATE_PLAYING = 3
 ANIM_STATE_STARTUP = 4
+ANIM_STATE_MISSION_IN_PROGRESS = 5
+ANIM_STATE_RANKUP_IN_PROGRESS = 6
+ANIM_STATE_MISSION_COMPLETE = 7
+ANIM_STATE_RANKUP_COMPLETE = 8
+anim_flash_time = 0
+MISSION_COMPLETE_FLASH_TIME = 2.0
 led_anim_state = ANIM_STATE_LAUNCHING
 
 # Next, init board perimeter neopixels to light up the board
@@ -73,23 +80,29 @@ pixels_ring.show()
 
 # Create neopixel animations
 print("Setting up neopixel animations...")
+OUTER_RING_COLOR = (255, 0, 255)
+INNER_RING_COLOR = (0, 0, 255)
+PULSE_COLOR = (200, 0, 0)
+INNERMOST_CENTER_COLOR = (255, 0, 0)
 # For perimeter neopixels
 perimeter_pixel_grid = helper.PixelMap.vertical_lines(
     # Pretend the perimeter pixels are a grid so we get lines up both sides for this anim
     pixels_perimeter, 20, 2, helper.horizontal_strip_gridmap(20, alternating=True)
 )
 perimeter_rainbow_comet_anim = RainbowComet(perimeter_pixel_grid, speed=.035, tail_length=7, bounce=False)
-perimeter_red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=(200, 0, 0), period=1.0)
-# And center ring
+perimeter_red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=PULSE_COLOR, period=1.0)
+# For center ring
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
-# ring_outer_spin_anim = Comet(pixels_ring, color=(255, 0, 255), speed=0.035, ring=True, num_pixels=24, pixel_start=0)
-ring_outer_spin_anim = Chase(pixels_ring, color=(255, 0, 255), speed=0.035, size=0, spacing=24, num_pixels=24, pixel_start=0)
-# ring_outer_spin_anim.freeze()
-# ring_inner_spin_anim = Comet(pixels_ring, color=(0, 0, 255), speed=0.035, ring=True, reverse=True, num_pixels=12, pixel_start=24)
-ring_inner_spin_anim = Chase(pixels_ring, color=(0, 0, 255), speed=0.035, reverse=True, size=1, spacing=11, num_pixels=12, pixel_start=24)
-# ring_inner_spin_anim.freeze()
-ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=(255, 0, 0), num_pixels=1, pixel_start=24+12)
-ring_red_pulse_anim = Pulse(pixels_ring, speed=.035, color=(200, 0, 0), period=1.0)
+ring_red_pulse_anim = Pulse(pixels_ring, speed=.035, color=PULSE_COLOR, period=1.0)
+# For outer center ring
+ring_outer_sparkle_anim = Sparkle(pixels_ring, speed=0.11, period=1.0, step=5, num_pixels=24)
+ring_outer_spin_anim = Chase(pixels_ring, color=OUTER_RING_COLOR, speed=0.035, size=0, spacing=24, num_pixels=24, pixel_start=0)
+ring_outer_blink_anim = Blink(pixels_ring, speed=0.125, color=OUTER_RING_COLOR, num_pixels=24, pixel_start=0)
+# For inner center ring
+ring_inner_spin_anim = Chase(pixels_ring, color=INNER_RING_COLOR, speed=0.035, reverse=True, size=1, spacing=11, num_pixels=12, pixel_start=24)
+ring_inner_blink_anim = Blink(pixels_ring, speed=0.125, color=OUTER_RING_COLOR, num_pixels=12, pixel_start=24)
+# For centermost single LED
+ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=INNERMOST_CENTER_COLOR, num_pixels=1, pixel_start=24+12)
 
 # Setup globals
 playing = False
@@ -133,6 +146,7 @@ def readline_comm(uart_recv):
     global cur_rank
     global ring_outer_spin_anim
     global ring_inner_spin_anim
+    global anim_flash_time
     data = uart_recv.readline()
     if data is not None:
         # convert bytearray to string
@@ -170,11 +184,6 @@ def readline_comm(uart_recv):
             elif command == 'DRN':
                 play_sound(uart, BALL_DRAINED_SOUND)
                 led_anim_state = ANIM_STATE_DRAINED
-                # Reset animations for missions
-                # ring_inner_spin_anim.reset()
-                # ring_outer_spin_anim.reset()
-                # ring_outer_spin_anim.freeze()
-                # ring_inner_spin_anim.freeze()
                 pixels_perimeter.fill((176, 13, 0))  # Drain neopixel color is a dark red
                 pixels_perimeter.show()
                 pixels_ring.fill((176, 13, 0))
@@ -205,32 +214,46 @@ def readline_comm(uart_recv):
                 cur_rank = 0
             elif command == 'ACC':
                 play_sound(uart, MISSION_ACCEPTED_SOUND)
-                # ring_outer_spin_anim.resume()
-                # if num_complete_missions == 2:
-                #     ring_inner_spin_anim.resume()
+                ring_outer_spin_anim.reset()
+                if num_complete_missions == 2:
+                    led_anim_state = ANIM_STATE_RANKUP_IN_PROGRESS
+                    ring_inner_spin_anim.reset()
+                else:
+                    led_anim_state = ANIM_STATE_MISSION_IN_PROGRESS
             elif command == 'MSN':
                 # Mission completed
                 play_sound(uart, MISSION_COMPLETE_SOUND)
-                # TODO: Flashing anim for mission complete
+                led_anim_state = ANIM_STATE_MISSION_COMPLETE
+                for i in range(24):
+                    pixels_ring[i] = (0, 0, 0)
+                pixels_ring.show()
+                # Update anims length
                 num_complete_missions = int(command_list[1])
                 ring_outer_spin_anim._size = 8 * num_complete_missions
                 ring_outer_spin_anim._spacing = 24 - ring_outer_spin_anim._size
-                # ring_outer_spin_anim.reset()
-                # ring_outer_spin_anim.freeze()
+                ring_outer_blink_anim._num_pixels = 8 * num_complete_missions
+                ring_outer_blink_anim.reset()
+                anim_flash_time = time.monotonic()
             elif command == 'RNK':
                 # Rank changed
                 play_sound(uart, MISSION_COMPLETE_PROMOTION_SOUND)
-                # TODO: Flashing anim for new rank
+                led_anim_state = ANIM_STATE_RANKUP_COMPLETE
+                ring_inner_blink_anim.reset()
+                ring_outer_blink_anim.reset()
+                anim_flash_time = time.monotonic()
+                # Flashing anim for new rank
+                for i in range(24+12):
+                    pixels_ring[i] = (0, 0, 0)
+                pixels_ring.show()
                 cur_rank = int(command_list[1])
                 num_complete_missions = 0
+                ring_inner_blink_anim._num_pixels = cur_rank + 1
+                ring_inner_blink_anim.reset()
+                # Update spin anims length
                 ring_inner_spin_anim._size = cur_rank + 1
                 ring_inner_spin_anim._spacing = 12 - ring_inner_spin_anim._size
                 ring_outer_spin_anim._size = 0
                 ring_outer_spin_anim._spacing = 24
-                # ring_inner_spin_anim.reset()
-                # ring_outer_spin_anim.reset()
-                # ring_outer_spin_anim.freeze()
-                # ring_inner_spin_anim.freeze()
             else:
                 print(f'Unknown command: {command}')
 
@@ -311,9 +334,9 @@ def send_uart(str):
     uart_comm.write(bytearray(write_str, "utf-8"))
 
 # Init Wav decoder for music
-decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"), bytearray(1024))
+# decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"), bytearray(1024))
 # Init MP3 decoder for music
-# decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
+decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
 # Init switches for mission select buttons
 mission_select_1 = digitalio.DigitalInOut(board.GP21)
@@ -363,19 +386,38 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             elif led_anim_state == ANIM_STATE_LAUNCHING:
                 perimeter_rainbow_comet_anim.animate()
                 ring_twinkle_anim.animate()
-            elif led_anim_state == ANIM_STATE_PLAYING:
+            elif led_anim_state == ANIM_STATE_RANKUP_IN_PROGRESS:
                 ring_outer_spin_anim.animate(show=False)
                 ring_inner_spin_anim.animate(show=False)
-                ring_center_blink_anim.animate(show=False)
+                # ring_center_blink_anim.animate(show=False)
                 pixels_ring.show()
+            elif led_anim_state == ANIM_STATE_MISSION_IN_PROGRESS:
+                ring_outer_spin_anim.animate()
             elif led_anim_state == ANIM_STATE_DRAINED and cur_time - drained_time > DRAINED_SOUND_LEN:
                 led_anim_state = ANIM_STATE_LAUNCHING
                 pixels_perimeter.fill((0, 0, 0))
                 pixels_perimeter.show()
                 pixels_ring.fill((0, 0, 0))
                 pixels_ring.show()
-                ring_twinkle_anim.reset()
                 perimeter_rainbow_comet_anim.reset()
+            elif led_anim_state == ANIM_STATE_MISSION_COMPLETE:
+                ring_outer_blink_anim.animate()
+                if cur_time > anim_flash_time + MISSION_COMPLETE_FLASH_TIME:
+                    # Light relevant LEDs for mission/rank completion progress
+                    for i in range(0, num_complete_missions * 8):
+                        pixels_ring[i] = OUTER_RING_COLOR
+                    led_anim_state = ANIM_STATE_PLAYING
+            elif led_anim_state == ANIM_STATE_RANKUP_COMPLETE:
+                ring_inner_blink_anim.animate(show=False)
+                ring_outer_sparkle_anim.animate(show=False)
+                pixels_ring.show()
+                if cur_time > anim_flash_time + MISSION_COMPLETE_FLASH_TIME:
+                    # Light relevant LEDs for mission/rank completion progress
+                    for i in range(24):
+                        pixels_ring[i] = (0, 0, 0)
+                    for i in range(0, cur_rank + 1):
+                        pixels_ring[i+24] = INNER_RING_COLOR
+                    led_anim_state = ANIM_STATE_PLAYING
 
             # Print any data on the UART line from the audio fx board
             while uart.in_waiting > 0:
