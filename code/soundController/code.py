@@ -84,6 +84,7 @@ OUTER_RING_COLOR = (255, 0, 255)
 INNER_RING_COLOR = (0, 0, 255)
 PULSE_COLOR = (200, 0, 0)
 INNERMOST_CENTER_COLOR = (255, 0, 0)
+CENTERMOST_PIXEL = 24+12
 # For perimeter neopixels
 perimeter_pixel_grid = helper.PixelMap.vertical_lines(
     # Pretend the perimeter pixels are a grid so we get lines up both sides for this anim
@@ -95,14 +96,14 @@ perimeter_red_pulse_anim = Pulse(pixels_perimeter, speed=.035, color=PULSE_COLOR
 ring_twinkle_anim = RainbowSparkle(pixels_ring, speed=0.11, period=1.0, step=5)
 ring_red_pulse_anim = Pulse(pixels_ring, speed=.035, color=PULSE_COLOR, period=1.0)
 # For outer center ring
-ring_outer_sparkle_anim = Sparkle(pixels_ring, speed=0.11, period=1.0, step=5, num_pixels=24)
+ring_outer_sparkle_anim = Sparkle(pixels_ring, speed=0.025, color=OUTER_RING_COLOR, num_sparkles=8, num_pixels=24)
 ring_outer_spin_anim = Chase(pixels_ring, color=OUTER_RING_COLOR, speed=0.035, size=0, spacing=24, num_pixels=24, pixel_start=0)
 ring_outer_blink_anim = Blink(pixels_ring, speed=0.125, color=OUTER_RING_COLOR, num_pixels=24, pixel_start=0)
 # For inner center ring
 ring_inner_spin_anim = Chase(pixels_ring, color=INNER_RING_COLOR, speed=0.035, reverse=True, size=1, spacing=11, num_pixels=12, pixel_start=24)
-ring_inner_blink_anim = Blink(pixels_ring, speed=0.125, color=OUTER_RING_COLOR, num_pixels=12, pixel_start=24)
+ring_inner_blink_anim = Blink(pixels_ring, speed=0.125, color=INNER_RING_COLOR, num_pixels=12, pixel_start=24)
 # For centermost single LED
-ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=INNERMOST_CENTER_COLOR, num_pixels=1, pixel_start=24+12)
+ring_center_blink_anim = Blink(pixels_ring, speed=0.5, color=INNERMOST_CENTER_COLOR, num_pixels=1, pixel_start=CENTERMOST_PIXEL)
 
 # Setup globals
 playing = False
@@ -197,7 +198,18 @@ def readline_comm(uart_recv):
                     led_anim_state = ANIM_STATE_PLAYING
                     pixels_perimeter.fill((255, 255, 255))
                     pixels_perimeter.show()
-                    pixels_ring.fill((0, 0, 0))
+                    # Show center lights for current state
+                    for i in range(24):
+                        if i < num_complete_missions * 8:
+                            pixels_ring[i] = OUTER_RING_COLOR
+                        else:
+                            pixels_ring[i] = (0, 0, 0)
+                    for i in range(12):
+                        if i < cur_rank + 1:
+                            pixels_ring[i+24] = INNER_RING_COLOR
+                        else:
+                            pixels_ring[i+24] = (0, 0, 0)
+                    pixels_ring[CENTERMOST_PIXEL] = (0, 0, 0)
                     pixels_ring.show()
             elif command == 'GOV':
                 # Game over
@@ -334,9 +346,9 @@ def send_uart(str):
     uart_comm.write(bytearray(write_str, "utf-8"))
 
 # Init Wav decoder for music
-# decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"), bytearray(1024))
+decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"), bytearray(1024))
 # Init MP3 decoder for music
-decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
+# decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
 # Init switches for mission select buttons
 mission_select_1 = digitalio.DigitalInOut(board.GP21)
@@ -389,10 +401,12 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             elif led_anim_state == ANIM_STATE_RANKUP_IN_PROGRESS:
                 ring_outer_spin_anim.animate(show=False)
                 ring_inner_spin_anim.animate(show=False)
-                # ring_center_blink_anim.animate(show=False)
+                ring_center_blink_anim.animate(show=False)
                 pixels_ring.show()
             elif led_anim_state == ANIM_STATE_MISSION_IN_PROGRESS:
-                ring_outer_spin_anim.animate()
+                ring_outer_spin_anim.animate(show=False)
+                ring_center_blink_anim.animate(show=False)
+                pixels_ring.show()
             elif led_anim_state == ANIM_STATE_DRAINED and cur_time - drained_time > DRAINED_SOUND_LEN:
                 led_anim_state = ANIM_STATE_LAUNCHING
                 pixels_perimeter.fill((0, 0, 0))
@@ -401,23 +415,26 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                 pixels_ring.show()
                 perimeter_rainbow_comet_anim.reset()
             elif led_anim_state == ANIM_STATE_MISSION_COMPLETE:
-                ring_outer_blink_anim.animate()
+                ring_outer_blink_anim.animate(show=False)
                 if cur_time > anim_flash_time + MISSION_COMPLETE_FLASH_TIME:
                     # Light relevant LEDs for mission/rank completion progress
                     for i in range(0, num_complete_missions * 8):
                         pixels_ring[i] = OUTER_RING_COLOR
+                    pixels_ring[CENTERMOST_PIXEL] = (0, 0, 0)
                     led_anim_state = ANIM_STATE_PLAYING
+                pixels_ring.show()
             elif led_anim_state == ANIM_STATE_RANKUP_COMPLETE:
                 ring_inner_blink_anim.animate(show=False)
                 ring_outer_sparkle_anim.animate(show=False)
-                pixels_ring.show()
                 if cur_time > anim_flash_time + MISSION_COMPLETE_FLASH_TIME:
                     # Light relevant LEDs for mission/rank completion progress
                     for i in range(24):
                         pixels_ring[i] = (0, 0, 0)
                     for i in range(0, cur_rank + 1):
                         pixels_ring[i+24] = INNER_RING_COLOR
+                    pixels_ring[CENTERMOST_PIXEL] = (0, 0, 0)
                     led_anim_state = ANIM_STATE_PLAYING
+                pixels_ring.show()
 
             # Print any data on the UART line from the audio fx board
             while uart.in_waiting > 0:
@@ -440,7 +457,18 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                         led_anim_state = ANIM_STATE_PLAYING
                         pixels_perimeter.fill((255, 255, 255))
                         pixels_perimeter.show()
-                        pixels_ring.fill((0, 0, 0))
+                        # Show center lights for current state
+                        for i in range(24):
+                            if i < num_complete_missions * 8:
+                                pixels_ring[i] = OUTER_RING_COLOR
+                            else:
+                                pixels_ring[i] = (0, 0, 0)
+                        for i in range(12):
+                            if i < cur_rank + 1:
+                                pixels_ring[i+24] = INNER_RING_COLOR
+                            else:
+                                pixels_ring[i+24] = (0, 0, 0)
+                        pixels_ring[CENTERMOST_PIXEL] = (0, 0, 0)
                         pixels_ring.show()
 
             # Check mission select buttons
