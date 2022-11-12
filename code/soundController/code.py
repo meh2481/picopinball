@@ -36,7 +36,7 @@ MISSION_COMPLETE_SOUND = 6
 
 # Init audio PWM out
 print("Initializing audio PWM out...")
-audio = audiopwmio.PWMAudioOut(board.GP0, quiescent_value=0)
+audio = audiopwmio.PWMAudioOut(board.GP0)
 
 # First things first, play startup sound
 wave_file = open("sfx/SOUND1.WAV", "rb")
@@ -346,9 +346,9 @@ def send_uart(str):
     uart_comm.write(bytearray(write_str, "utf-8"))
 
 # Init Wav decoder for music
-decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"), bytearray(1024))
+# decoder = WaveFile(open("/sd/PINBALL.WAV", "rb"), bytearray(1024))
 # Init MP3 decoder for music
-# decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
+decoder = audiomp3.MP3Decoder(open("/sd/PINBALL.mp3", "rb"))
 
 # Init switches for mission select buttons
 mission_select_1 = digitalio.DigitalInOut(board.GP21)
@@ -416,6 +416,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                 perimeter_rainbow_comet_anim.reset()
             elif led_anim_state == ANIM_STATE_MISSION_COMPLETE:
                 ring_outer_blink_anim.animate(show=False)
+                ring_center_blink_anim.animate(show=False)
                 if cur_time > anim_flash_time + MISSION_COMPLETE_FLASH_TIME:
                     # Light relevant LEDs for mission/rank completion progress
                     for i in range(0, num_complete_missions * 8):
@@ -426,6 +427,7 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
             elif led_anim_state == ANIM_STATE_RANKUP_COMPLETE:
                 ring_inner_blink_anim.animate(show=False)
                 ring_outer_sparkle_anim.animate(show=False)
+                ring_center_blink_anim.animate(show=False)
                 if cur_time > anim_flash_time + MISSION_COMPLETE_FLASH_TIME:
                     # Light relevant LEDs for mission/rank completion progress
                     for i in range(24):

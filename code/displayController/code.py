@@ -358,7 +358,7 @@ def readline(uart_bus):
                             num_missions_completed = 0
                             cur_rank += 1
                             cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
-                            set_status_text(f"Promoted to {RANK_NAMES[cur_rank]}")
+                            set_status_text(f"Promotion to {RANK_NAMES[cur_rank]}")
                             send_uart(uart_sound, f'RNK {cur_rank}')
                         else:
                             set_status_text("Mission Completed")
