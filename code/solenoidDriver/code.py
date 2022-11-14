@@ -27,6 +27,9 @@ DRAIN_TRIGGER_TIME = 0.125
 HYPERSPACE_DELAY_TIME = 0.75
 HYPERSPACE_TRIGGER_TIME = 0.125
 DRAIN_SIGNAL_DEBOUNCE_TIME = 5.0
+PWM_MAX_DUTY_CYCLE = 65535
+PWM_FLIPPER_SUSTAIN = PWM_MAX_DUTY_CYCLE // 3
+FLIPPER_PWM_DELAY = 1.0
 
 def send_uart(str):
     global uart
@@ -57,7 +60,6 @@ def readline():
                 # Reset the drop targets
                 drop_target_state = DROP_TARGET_STATE_WAIT
                 drop_target_start_time = time.monotonic()
-                # TODO: Recalibrate pop bumpers probably
             else:
                 print(f'Unknown command: {command}')
 
@@ -135,13 +137,8 @@ button_l_debouncer = Debouncer(button_l)
 button_r_debouncer = Debouncer(button_r)
 
 # Init L/R flipper solenoids
-solenoid_l = DigitalInOut(board.GP17)
-solenoid_l.direction = Direction.OUTPUT
-solenoid_l.value = False
-
-solenoid_r = DigitalInOut(board.GP16)
-solenoid_r.direction = Direction.OUTPUT
-solenoid_r.value = False
+solenoid_l = pwmio.PWMOut(board.GP17)
+solenoid_r = pwmio.PWMOut(board.GP16)
 
 # Init L/R slingshot switches
 slingshot_switch_l = DigitalInOut(board.GP0)
@@ -213,6 +210,8 @@ pop_bumper_fire_time = [0 for _ in range(3)]
 sol_drain_trigger_time = 0
 drain_debounce_time = 0
 sol_hyperspace_trigger_time = 0
+sol_l_rose_time = None
+sol_r_rose_time = None
 
 # Init UART
 uart = busio.UART(board.GP8, board.GP9)
@@ -233,19 +232,31 @@ while True:
     # Update flippers
     button_l_debouncer.update()
     button_r_debouncer.update()
-    # TODO: PWM the solenoids after a certain period of time to make them last longer
+
     if button_l_debouncer.rose:
-        solenoid_l.value = True
+        sol_l_rose_time = cur_time
+        solenoid_l.duty_cycle = PWM_MAX_DUTY_CYCLE
         send_uart("FLU")
     elif button_l_debouncer.fell:
-        solenoid_l.value = False
+        solenoid_l.duty_cycle = 0
+        sol_l_rose_time = None
         send_uart("FLD")
+    elif sol_l_rose_time is not None and cur_time - sol_l_rose_time > FLIPPER_PWM_DELAY:
+        # PWM the solenoids after a certain period of time to make them last longer
+        solenoid_l.duty_cycle = PWM_FLIPPER_SUSTAIN
+        sol_l_rose_time = None
+
     if button_r_debouncer.rose:
-        solenoid_r.value = True
+        sol_r_rose_time = cur_time
+        solenoid_r.duty_cycle = PWM_MAX_DUTY_CYCLE
         send_uart("FRU")
     elif button_r_debouncer.fell:
-        solenoid_r.value = False
+        solenoid_r.duty_cycle = 0
+        sol_r_rose_time = None
         send_uart("FRD")
+    elif sol_r_rose_time is not None and cur_time - sol_r_rose_time > FLIPPER_PWM_DELAY:
+        solenoid_r.duty_cycle = PWM_FLIPPER_SUSTAIN
+        sol_r_rose_time = None
 
     # Update slingshots
     # Slingshots only launch after a delay since last launch, to avoid chatter
