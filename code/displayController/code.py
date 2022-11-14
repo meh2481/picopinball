@@ -131,6 +131,15 @@ DROP_TARGET_PIN_MAPPING = [
     [0, pins[DROP_TARGET_MIDDLE]],
     [0, pins[DROP_TARGET_CLOSE]]
 ]
+LIGHT_LEFT_FLIPPER = [0, pins[3]]
+LIGHT_RIGHT_FLIPPER = [0, pins[4]]
+LIGHT_NEW_GAME_BUTTON = [0, pins[2]]
+
+def set_light(arr, state):
+    """Set the light state."""
+    global aw_devices
+    value = 255 if state else 0
+    aw_devices[arr[0]].set_constant_current(arr[1], value)
 
 # Release any resources currently in use for the displays
 displayio.release_displays()
@@ -180,7 +189,6 @@ def increase_score(add):
     global score_multiplier
     global text_area_score
     global uart_sound
-    global aw_devices
     global game_mode
     score += add * score_multiplier
     # Reverse because RTL idk what I'm doing
@@ -190,7 +198,7 @@ def increase_score(add):
         set_status_text(WAITING_MISSION_SELECT_TEXT)
         send_uart(uart_sound, 'PNT')
         # Turn off ball deploy light
-        aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
+        set_light(LIGHT_BALL_DEPLOY, False)
 
 
 def play_sound(sound_idx):
@@ -208,7 +216,6 @@ def send_uart(uart, str):
 
 sound_controller_initialized = False
 solenoid_driver_initialized = False
-startup_anim = True
 drop_target_reset_sound_timer = None
 DROP_TARGET_RESET_SOUND_DELAY = 0.75
 HYPERSPACE_DECREASE_TIMER = 60  # Delay to decrease the hyperspace bonus
@@ -223,7 +230,6 @@ def readline(uart_bus):
     global uart_sound
     global solenoid_driver_initialized
     global sound_controller_initialized
-    global startup_anim
     global drop_target_reset_sound_timer
     global cur_hyperspace_trigger_timer
     global ball_drained_timer
@@ -316,20 +322,19 @@ def readline(uart_bus):
                 if solenoid_driver_initialized and sound_controller_initialized:
                     print("All boards initialized")
                     # Stop animation
-                    startup_anim = False
                     for aw_device in aw_devices:
                         for pin in range(len(pins)):
                             aw_device.set_constant_current(pin, 0)
                     # Turn on relevant lamps
                     for i in range(len(DROP_TARGET_PIN_MAPPING)):
-                        aw_devices[DROP_TARGET_PIN_MAPPING[i][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[i][1], 255)
+                        set_light(DROP_TARGET_PIN_MAPPING[i], True)
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
                     game_mode = MODE_BALL_LAUNCH
                     crash_bonus = DEFAULT_CRASH_BONUS
                     set_status_text("Launch Ball")
                     # Turn on ball deploy light
-                    aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
+                    set_light(LIGHT_BALL_DEPLOY, True)
             elif command == 'IR':
                 print("IR sensor triggered")
                 increase_score(ir_scores[int(command_list[1])])
@@ -338,11 +343,11 @@ def readline(uart_bus):
                 game_mode = MODE_PLAYING
                 set_status_text(WAITING_MISSION_SELECT_TEXT)
                 # Turn off ball deploy light
-                aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
+                set_light(LIGHT_BALL_DEPLOY, False)
             elif command == 'DT':
                 print("Drop target triggered")
                 dt_pin = int(command_list[1])
-                aw_devices[DROP_TARGET_PIN_MAPPING[dt_pin][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[dt_pin][1], 0)
+                set_light(DROP_TARGET_PIN_MAPPING[dt_pin], False)
                 increase_score(1000)
             elif command == 'PB':
                 print("Pop Bumper Triggered")
@@ -352,16 +357,16 @@ def readline(uart_bus):
                 increase_score(100)
             elif command == 'FLU':
                 print("Left flipper Up")
-                aw_devices[0].set_constant_current(pins[3], 255)
+                set_light(LIGHT_LEFT_FLIPPER, True)
             elif command == 'FLD':
                 print("Left flipper Down")
-                aw_devices[0].set_constant_current(pins[3], 0)
+                set_light(LIGHT_LEFT_FLIPPER, False)
             elif command == 'FRU':
                 print("Right flipper Up")
-                aw_devices[0].set_constant_current(pins[4], 255)
+                set_light(LIGHT_RIGHT_FLIPPER, True)
             elif command == 'FRD':
                 print("Right flipper Down")
-                aw_devices[0].set_constant_current(pins[4], 0)
+                set_light(LIGHT_RIGHT_FLIPPER, False)
             else:
                 print(data_string, end="")
             
@@ -546,7 +551,7 @@ while True:
         play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
         # Reset drop target lights
         for i in range(len(DROP_TARGET_PIN_MAPPING)):
-            aw_devices[DROP_TARGET_PIN_MAPPING[i][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[i][1], 255)
+            set_light(DROP_TARGET_PIN_MAPPING[i], True)
     
     # Decrease cur_hyperspace_value after a delay & turn off lights
     if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
@@ -580,20 +585,19 @@ while True:
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             # Turn on ball deploy light
-            # TODO: Better device/light handling. Function to set like light_func(LIGHT_BALL_DEPLOY, True) or sth
-            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
+            set_light(LIGHT_BALL_DEPLOY, True)
     
     # Start new game and such
     new_game_button_debouncer.update()
     if new_game_button_debouncer.fell:
-        aw_devices[0].set_constant_current(pins[2], 255)
+        set_light(LIGHT_NEW_GAME_BUTTON, True)
         if game_mode == MODE_GAME_OVER:
             # Start a new game
             print("Start new game")
             game_mode = MODE_BALL_LAUNCH
             crash_bonus = DEFAULT_CRASH_BONUS
             # Turn on ball deploy light
-            aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
+            set_light(LIGHT_BALL_DEPLOY, True)
             score = 0
             ball = 1
             text_area_score.text = str(score)
@@ -606,7 +610,7 @@ while True:
             num_missions_completed = 0
             # Reset drop target lights
             for i in range(len(DROP_TARGET_PIN_MAPPING)):
-                aw_devices[DROP_TARGET_PIN_MAPPING[i][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[i][1], 255)
+                set_light(DROP_TARGET_PIN_MAPPING[i], True)
             send_uart(uart_solenoid, "RST")
             send_uart(uart_sound, "RST")
             # TODO: Startup anim and delay again
@@ -615,7 +619,7 @@ while True:
         send_uart(uart_solenoid, "RLD")
     elif new_game_button_debouncer.rose:
         print("New game button released")
-        aw_devices[0].set_constant_current(pins[2], 0)
+        set_light(LIGHT_NEW_GAME_BUTTON, False)
 
     # Update message area
     if message_timer and next_message and cur_time > message_timer:
