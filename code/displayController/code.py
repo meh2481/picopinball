@@ -80,6 +80,12 @@ cur_rank = 0
 mission_hits_left = 0
 DEFAULT_CRASH_BONUS = 1000
 crash_bonus = DEFAULT_CRASH_BONUS
+message_timer = None
+MESSAGE_DELAY = 3.0
+MESSAGE_DELAY_LONGER = 5.0
+next_message = ''
+WAITING_MISSION_SELECT_TEXT = "Hit Mission Select Targets"
+current_status_text = WAITING_MISSION_SELECT_TEXT
 MISSION_NAMES = [
     'Engine Maintenance',
     'Thruster Tests',
@@ -134,6 +140,9 @@ led.value = True
 def set_status_text(str):
     """Set the status text on the screen."""
     global text_area_recommendation
+    global message_timer
+    global next_message
+    global current_status_text
     # Split the string into lines of maximum length 14
     final_str = ""
     cur_len = 0
@@ -148,7 +157,10 @@ def set_status_text(str):
             final_str += " " + s if cur_len > 0 else s
             cur_len += s_len + 1
     text_area_recommendation.text = final_str
+    message_timer = None
+    next_message = ''
     print("Set status text: " + final_str)
+    current_status_text = str
 
 
 def init_uart(tx_pin, rx_pin):
@@ -172,7 +184,7 @@ def increase_score(add):
     text_area_score.text = ''.join(reversed(f"{score}"))
     if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
         game_mode = MODE_PLAYING
-        set_status_text("Hit Mission Select Targets")
+        set_status_text(WAITING_MISSION_SELECT_TEXT)
         send_uart(uart_sound, 'PNT')
         # Turn off ball deploy light
         aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
@@ -223,6 +235,8 @@ def readline(uart_bus):
     global crash_bonus
     global num_missions_completed
     global cur_rank
+    global message_timer
+    global next_message
     data = uart_bus.readline()
     if data is not None:
         # convert bytearray to string
@@ -244,12 +258,18 @@ def readline(uart_bus):
                     mission_status = MISSION_STATUS_ACTIVE
                     mission_hits_left = MISSION_HIT_COUNTS[cur_mission]
                     send_uart(uart_sound, 'ACC')
-                    # TODO: Update mission status text on delay
+                    # Update message after a delay
+                    message_timer = MESSAGE_DELAY + time.monotonic()
+                    next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
                 elif cur_hyperspace_value == 4:
+                    next_message = current_status_text
+                    message_timer = MESSAGE_DELAY + time.monotonic()
                     set_status_text('Jackpot Awarded')
                     increase_score(1500)
                 else:
-                    set_status_text('Hyperspace Launch')
+                    next_message = current_status_text
+                    message_timer = MESSAGE_DELAY + time.monotonic()
+                    set_status_text('Hyperspace Bonus')
                 cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
             elif command == 'DRN':
                 # Ball drained
@@ -271,6 +291,8 @@ def readline(uart_bus):
                 increase_score(1000)
                 crash_bonus += 1000
                 score_multiplier = min(score_multiplier + 1, 5)
+                next_message = current_status_text
+                message_timer = MESSAGE_DELAY + time.monotonic()
                 set_status_text(f"Score Multiplier {score_multiplier}x")
             elif command == 'BTN':
                 if mission_status == MISSION_STATUS_NONE or mission_status == MISSION_STATUS_SELECTED:
@@ -311,7 +333,7 @@ def readline(uart_bus):
                 if game_mode != MODE_BALL_LAUNCH:
                     crash_bonus += 100
                 game_mode = MODE_PLAYING
-                set_status_text("Hit Mission Select Targets")
+                set_status_text(WAITING_MISSION_SELECT_TEXT)
                 # Turn off ball deploy light
                 aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
             elif command == 'DT':
@@ -347,14 +369,19 @@ def readline(uart_bus):
                         mission_status = MISSION_STATUS_NONE
                         increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
                         num_missions_completed += 1
+                        cur_mission = None
                         if num_missions_completed == MISSIONS_PER_RANK:
                             crash_bonus += 1000 * cur_rank
                             num_missions_completed = 0
                             cur_rank += 1
                             cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
+                            next_message = WAITING_MISSION_SELECT_TEXT
+                            message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
                             set_status_text(f"Promotion to {RANK_NAMES[cur_rank]}")
                             send_uart(uart_sound, f'RNK {cur_rank}')
                         else:
+                            next_message = WAITING_MISSION_SELECT_TEXT
+                            message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
                             set_status_text("Mission Completed")
                             crash_bonus += 550 * cur_rank
                             send_uart(uart_sound, f'MSN {num_missions_completed}')
@@ -543,12 +570,14 @@ while True:
             send_uart(uart_solenoid, "RLD")
             game_mode = MODE_BALL_LAUNCH
             crash_bonus = DEFAULT_CRASH_BONUS
+            next_message = "Press New Game Button"
+            message_timer = cur_time + MESSAGE_DELAY_LONGER
             set_status_text("Launch Ball")
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             # Turn on ball deploy light
+            # TODO: Better device/light handling. Function to set like light_func(LIGHT_BALL_DEPLOY, True) or sth
             aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 255)
-            # TODO: Some other reset things
     
     # Start new game and such
     new_game_button_debouncer.update()
@@ -583,3 +612,8 @@ while True:
     elif new_game_button_debouncer.rose:
         print("New game button released")
         aw_devices[0].set_constant_current(pins[2], 0)
+
+    # Update message area
+    if message_timer and next_message and cur_time > message_timer:
+        set_status_text(next_message)
+        message_timer = None
