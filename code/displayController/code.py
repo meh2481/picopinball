@@ -121,12 +121,16 @@ RANK_NAMES = [
 DROP_TARGET_FAR = 5
 DROP_TARGET_MIDDLE = 6
 DROP_TARGET_CLOSE = 7
-DROP_TARGET_PIN_MAPPING = [DROP_TARGET_FAR, DROP_TARGET_MIDDLE, DROP_TARGET_CLOSE]
 SERVO_TIMEOUT = 1.0
 
 # Lights constants
 pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expanders
 LIGHT_BALL_DEPLOY = [0, pins[8]] # First device, ninth pin
+DROP_TARGET_PIN_MAPPING = [
+    [0, pins[DROP_TARGET_FAR]],
+    [0, pins[DROP_TARGET_MIDDLE]],
+    [0, pins[DROP_TARGET_CLOSE]]
+]
 
 # Release any resources currently in use for the displays
 displayio.release_displays()
@@ -180,7 +184,6 @@ def increase_score(add):
     global game_mode
     score += add * score_multiplier
     # Reverse because RTL idk what I'm doing
-    # TODO: Make this only update once per frame maximum
     text_area_score.text = ''.join(reversed(f"{score}"))
     if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
         game_mode = MODE_PLAYING
@@ -319,7 +322,7 @@ def readline(uart_bus):
                             aw_device.set_constant_current(pin, 0)
                     # Turn on relevant lamps
                     for i in range(len(DROP_TARGET_PIN_MAPPING)):
-                        aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
+                        aw_devices[DROP_TARGET_PIN_MAPPING[i][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[i][1], 255)
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
                     game_mode = MODE_BALL_LAUNCH
@@ -338,7 +341,8 @@ def readline(uart_bus):
                 aw_devices[LIGHT_BALL_DEPLOY[0]].set_constant_current(LIGHT_BALL_DEPLOY[1], 0)
             elif command == 'DT':
                 print("Drop target triggered")
-                aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[int(command_list[1])]], 0)
+                dt_pin = int(command_list[1])
+                aw_devices[DROP_TARGET_PIN_MAPPING[dt_pin][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[dt_pin][1], 0)
                 increase_score(1000)
             elif command == 'PB':
                 print("Pop Bumper Triggered")
@@ -392,7 +396,7 @@ def readline(uart_bus):
 
 def rand_ship_time():
     """Return a random time for the servo to update next."""
-    return time.monotonic() + random.uniform(5, 30)
+    return time.monotonic() + random.uniform(10, 30)
 
 
 def rand_ship_angle(cur_angle):
@@ -542,7 +546,7 @@ while True:
         play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
         # Reset drop target lights
         for i in range(len(DROP_TARGET_PIN_MAPPING)):
-            aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
+            aw_devices[DROP_TARGET_PIN_MAPPING[i][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[i][1], 255)
     
     # Decrease cur_hyperspace_value after a delay & turn off lights
     if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
@@ -602,7 +606,7 @@ while True:
             num_missions_completed = 0
             # Reset drop target lights
             for i in range(len(DROP_TARGET_PIN_MAPPING)):
-                aw_devices[0].set_constant_current(pins[DROP_TARGET_PIN_MAPPING[i]], 255)
+                aw_devices[DROP_TARGET_PIN_MAPPING[i][0]].set_constant_current(DROP_TARGET_PIN_MAPPING[i][1], 255)
             send_uart(uart_solenoid, "RST")
             send_uart(uart_sound, "RST")
             # TODO: Startup anim and delay again
