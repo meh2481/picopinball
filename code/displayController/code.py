@@ -81,8 +81,8 @@ mission_hits_left = 0
 DEFAULT_CRASH_BONUS = 1000
 crash_bonus = DEFAULT_CRASH_BONUS
 message_timer = None
-MESSAGE_DELAY = 3.0
-MESSAGE_DELAY_LONGER = 5.0
+MESSAGE_DELAY = 5.0
+MESSAGE_DELAY_LONGER = 8.0
 next_message = ''
 WAITING_MISSION_SELECT_TEXT = "Hit Mission Select Targets"
 current_status_text = WAITING_MISSION_SELECT_TEXT
@@ -276,12 +276,16 @@ def readline(uart_bus):
                 elif cur_hyperspace_value == 4:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                         next_message_to_set = current_status_text
+                        if message_timer:
+                            next_message_to_set = next_message
                         set_status_text('Jackpot Awarded')
                         next_message = next_message_to_set
                         message_timer = MESSAGE_DELAY + time.monotonic()
                     increase_score(1500)
                 elif mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                     next_message_to_set = current_status_text
+                    if message_timer:
+                        next_message_to_set = next_message
                     set_status_text('Hyperspace Bonus')
                     next_message = next_message_to_set
                     message_timer = MESSAGE_DELAY + time.monotonic()
@@ -307,6 +311,8 @@ def readline(uart_bus):
                 crash_bonus += 1000
                 score_multiplier = min(score_multiplier + 1, 5)
                 next_message_to_set = current_status_text
+                if message_timer:
+                    next_message_to_set = next_message
                 set_status_text(f"Score Multiplier {score_multiplier}x")
                 message_timer = MESSAGE_DELAY + time.monotonic()
                 next_message = next_message_to_set
@@ -631,3 +637,4 @@ while True:
     if message_timer and next_message and cur_time > message_timer:
         set_status_text(next_message)
         message_timer = None
+        next_message = None
