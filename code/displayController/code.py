@@ -271,14 +271,16 @@ def readline(uart_bus):
                     message_timer = MESSAGE_DELAY + time.monotonic()
                     next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
                 elif cur_hyperspace_value == 4:
-                    next_message = current_status_text
-                    message_timer = MESSAGE_DELAY + time.monotonic()
+                    next_message_to_set = current_status_text
                     set_status_text('Jackpot Awarded')
+                    next_message = next_message_to_set
+                    message_timer = MESSAGE_DELAY + time.monotonic()
                     increase_score(1500)
                 else:
-                    next_message = current_status_text
-                    message_timer = MESSAGE_DELAY + time.monotonic()
+                    next_message_to_set = current_status_text
                     set_status_text('Hyperspace Bonus')
+                    next_message = next_message_to_set
+                    message_timer = MESSAGE_DELAY + time.monotonic()
                 cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
             elif command == 'DRN':
                 # Ball drained
@@ -300,9 +302,10 @@ def readline(uart_bus):
                 increase_score(1000)
                 crash_bonus += 1000
                 score_multiplier = min(score_multiplier + 1, 5)
-                next_message = current_status_text
-                message_timer = MESSAGE_DELAY + time.monotonic()
+                next_message_to_set = current_status_text
                 set_status_text(f"Score Multiplier {score_multiplier}x")
+                message_timer = MESSAGE_DELAY + time.monotonic()
+                next_message = next_message_to_set
             elif command == 'BTN':
                 if mission_status == MISSION_STATUS_NONE or mission_status == MISSION_STATUS_SELECTED:
                     button_num = int(command_list[1])
@@ -384,14 +387,14 @@ def readline(uart_bus):
                             num_missions_completed = 0
                             cur_rank += 1
                             cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
+                            set_status_text(f"Promotion to {RANK_NAMES[cur_rank]}")
                             next_message = WAITING_MISSION_SELECT_TEXT
                             message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
-                            set_status_text(f"Promotion to {RANK_NAMES[cur_rank]}")
                             send_uart(uart_sound, f'RNK {cur_rank}')
                         else:
+                            set_status_text("Mission Completed")
                             next_message = WAITING_MISSION_SELECT_TEXT
                             message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
-                            set_status_text("Mission Completed")
                             crash_bonus += 550 * cur_rank
                             send_uart(uart_sound, f'MSN {num_missions_completed}')
                     elif mission_hits_left == 1:
@@ -579,9 +582,9 @@ while True:
             send_uart(uart_solenoid, "RLD")
             game_mode = MODE_BALL_LAUNCH
             crash_bonus = DEFAULT_CRASH_BONUS
-            next_message = "Press New Game Button"
-            message_timer = cur_time + MESSAGE_DELAY_LONGER
             set_status_text("Launch Ball")
+            message_timer = cur_time + MESSAGE_DELAY_LONGER
+            next_message = "Press New Game Button"
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             # Turn on ball deploy light
