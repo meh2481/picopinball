@@ -4,8 +4,8 @@ import displayio
 import busio
 from digitalio import DigitalInOut, Direction, Pull
 from adafruit_display_text import label
-from adafruit_st7789 import ST7789
-# import adafruit_ili9341
+# from adafruit_st7789 import ST7789
+import adafruit_ili9341
 import adafruit_imageload
 import time
 from adafruit_debouncer import Debouncer
@@ -449,13 +449,13 @@ spi = busio.SPI(board.GP14, MOSI=board.GP15, MISO=board.GP12)
 tft_cs = board.GP13
 tft_dc = board.GP10
 tft_reset = board.GP11
-tft_backlight = board.GP9
+tft_backlight = board.GP8
 
 # Setup display
 display_bus = displayio.FourWire(spi, command=tft_dc, chip_select=tft_cs, reset=tft_reset)
-display = ST7789(display_bus, width=240, height=320,rotation=180, backlight_pin=tft_backlight)
+# display = ST7789(display_bus, width=240, height=320,rotation=180, backlight_pin=tft_backlight)
 # If using bigger display:
-# display = adafruit_ili9341.ILI9341(display_bus, width=240, height=320, rotation=270, backlight_pin=tft_backlight)
+display = adafruit_ili9341.ILI9341(display_bus, width=240, height=320, rotation=270, backlight_pin=tft_backlight, backlight_on_high=True, brightness=1.0)
 
 # Load score background
 bitmap, palette = adafruit_imageload.load(
