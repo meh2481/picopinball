@@ -91,7 +91,7 @@ MISSION_NAMES = [
     'Thruster Tests',
     'Orbital Refueling',
 ]
-MISSION_HIT_COUNTS = [5, 6, 4]
+MISSION_HIT_COUNTS = [5, 6, 3]
 MISSION_TARGETS = ['PB', 'SLG', 'HYP']
 MISSION_STATUS_TEXT_PLURAL = [
     '{} Engine Bumper Hits Left',
@@ -195,7 +195,8 @@ def increase_score(add):
     text_area_score.text = ''.join(reversed(f"{score}"))
     if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
         game_mode = MODE_PLAYING
-        set_status_text(WAITING_MISSION_SELECT_TEXT)
+        if mission_status == MISSION_STATUS_NONE:
+            set_status_text(WAITING_MISSION_SELECT_TEXT)
         send_uart(uart_sound, 'PNT')
         # Turn off ball deploy light
         set_light(LIGHT_BALL_DEPLOY, False)
@@ -247,6 +248,7 @@ def readline(uart_bus):
     global message_timer
     global next_message
     data = uart_bus.readline()
+    mission_accepted_this_frame = False
     if data is not None:
         # convert bytearray to string
         data_string = ''.join([chr(b) for b in data])
@@ -264,6 +266,7 @@ def readline(uart_bus):
                 cur_hyperspace_trigger_timer = time.monotonic()
                 if mission_status == MISSION_STATUS_SELECTED:
                     set_status_text('Mission Accepted')
+                    mission_accepted_this_frame = True
                     mission_status = MISSION_STATUS_ACTIVE
                     mission_hits_left = MISSION_HIT_COUNTS[cur_mission]
                     send_uart(uart_sound, 'ACC')
@@ -271,12 +274,13 @@ def readline(uart_bus):
                     message_timer = MESSAGE_DELAY + time.monotonic()
                     next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
                 elif cur_hyperspace_value == 4:
-                    next_message_to_set = current_status_text
-                    set_status_text('Jackpot Awarded')
-                    next_message = next_message_to_set
-                    message_timer = MESSAGE_DELAY + time.monotonic()
+                    if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
+                        next_message_to_set = current_status_text
+                        set_status_text('Jackpot Awarded')
+                        next_message = next_message_to_set
+                        message_timer = MESSAGE_DELAY + time.monotonic()
                     increase_score(1500)
-                else:
+                elif mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                     next_message_to_set = current_status_text
                     set_status_text('Hyperspace Bonus')
                     next_message = next_message_to_set
@@ -374,33 +378,32 @@ def readline(uart_bus):
                 print(data_string, end="")
             
             # Test for mission update
-            if mission_status == MISSION_STATUS_ACTIVE:
-                if command == MISSION_TARGETS[cur_mission]:
-                    mission_hits_left -= 1
-                    if mission_hits_left == 0:
-                        mission_status = MISSION_STATUS_NONE
-                        increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
-                        num_missions_completed += 1
-                        cur_mission = None
-                        if num_missions_completed == MISSIONS_PER_RANK:
-                            crash_bonus += 1000 * cur_rank
-                            num_missions_completed = 0
-                            cur_rank += 1
-                            cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
-                            set_status_text(f"Promotion to {RANK_NAMES[cur_rank]}")
-                            next_message = WAITING_MISSION_SELECT_TEXT
-                            message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
-                            send_uart(uart_sound, f'RNK {cur_rank}')
-                        else:
-                            set_status_text("Mission Completed")
-                            next_message = WAITING_MISSION_SELECT_TEXT
-                            message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
-                            crash_bonus += 550 * cur_rank
-                            send_uart(uart_sound, f'MSN {num_missions_completed}')
-                    elif mission_hits_left == 1:
-                        set_status_text(MISSION_STATUS_TEXT_SINGULAR[cur_mission])
+            if mission_status == MISSION_STATUS_ACTIVE and command == MISSION_TARGETS[cur_mission] and not mission_accepted_this_frame:
+                mission_hits_left -= 1
+                if mission_hits_left == 0:
+                    mission_status = MISSION_STATUS_NONE
+                    increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
+                    num_missions_completed += 1
+                    cur_mission = None
+                    if num_missions_completed == MISSIONS_PER_RANK:
+                        crash_bonus += 1000 * cur_rank
+                        num_missions_completed = 0
+                        cur_rank += 1
+                        cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
+                        set_status_text(f"Promotion to {RANK_NAMES[cur_rank]}")
+                        next_message = WAITING_MISSION_SELECT_TEXT
+                        message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
+                        send_uart(uart_sound, f'RNK {cur_rank}')
                     else:
-                        set_status_text(MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left))
+                        set_status_text("Mission Completed")
+                        next_message = WAITING_MISSION_SELECT_TEXT
+                        message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
+                        crash_bonus += 550 * cur_rank
+                        send_uart(uart_sound, f'MSN {num_missions_completed}')
+                elif mission_hits_left == 1:
+                    set_status_text(MISSION_STATUS_TEXT_SINGULAR[cur_mission])
+                else:
+                    set_status_text(MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left))
 
 def rand_ship_time():
     """Return a random time for the servo to update next."""
@@ -548,14 +551,14 @@ while True:
         print("Turn off ship servo")
         ship_servo.angle = None
         servo_shutoff_time = rand_servo_time + SERVO_TIMEOUT
-    
+
     if drop_target_reset_sound_timer and cur_time > drop_target_reset_sound_timer:
         drop_target_reset_sound_timer = None
         play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
         # Reset drop target lights
         for i in range(len(DROP_TARGET_PIN_MAPPING)):
             set_light(DROP_TARGET_PIN_MAPPING[i], True)
-    
+
     # Decrease cur_hyperspace_value after a delay & turn off lights
     if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
         cur_hyperspace_value -= 1
@@ -566,7 +569,7 @@ while True:
         #     hyperspace_lights_off()
         # else:
         #     hyperspace_lights_on(cur_hyperspace_value)
-    
+
     # Reload the ball if we should
     if ball_drained_timer and cur_time > ball_drained_timer + BALL_DRAIN_DELAY:
         # TODO: Handle replay/extra balls
@@ -576,6 +579,8 @@ while True:
         if ball > NUM_BALLS:
             game_mode = MODE_GAME_OVER
             set_status_text("Game Over")
+            message_timer = cur_time + MESSAGE_DELAY_LONGER
+            next_message = "Press New Game Button"
             send_uart(uart_sound, "GOV")
         else:
             text_area_ball.text = str(ball)
@@ -583,13 +588,11 @@ while True:
             game_mode = MODE_BALL_LAUNCH
             crash_bonus = DEFAULT_CRASH_BONUS
             set_status_text("Launch Ball")
-            message_timer = cur_time + MESSAGE_DELAY_LONGER
-            next_message = "Press New Game Button"
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
-    
+
     # Start new game and such
     new_game_button_debouncer.update()
     if new_game_button_debouncer.fell:
