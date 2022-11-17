@@ -135,12 +135,13 @@ LIGHT_LEFT_FLIPPER = [0, pins[3]]
 LIGHT_RIGHT_FLIPPER = [0, pins[4]]
 LIGHT_NEW_GAME_BUTTON = [0, pins[2]]
 
-light_state = [[False] * 16 for _ in range(2)]
+light_state = [[False for _ in range(len(pins))] for _ in range(3)]
 def set_light(arr, state):
     """Set the light state."""
     global aw_devices
     global light_state
     value = 255 if state else 0
+    print(f'Setting light {arr[0]},{arr[1]} to {state}')
     aw_devices[arr[0]].set_constant_current(arr[1], value)
     light_state[arr[0]][arr[1]] = state
 
@@ -160,10 +161,7 @@ def update_blink_anims():
     for i in reversed(range(len(light_blink_anims))):
         arr, num_blinks, period, stay_off_on_complete, start_time = light_blink_anims[i]
         if num_blinks == 0:
-            if stay_off_on_complete:
-                set_light(arr, False)
-            else:
-                set_light(arr, True)
+            set_light(arr, stay_off_on_complete)
             del light_blink_anims[i]
         else:
             elapsed = time.monotonic() - start_time
@@ -353,7 +351,7 @@ def readline(uart_bus):
                 message_timer = MESSAGE_DELAY + time.monotonic()
                 # Blink all 3 drop target lights
                 for i in range(3):
-                    blink_light(LIGHT_DROP_TARGET[i], 10, 0.2, True)
+                    blink_light(LIGHT_DROP_TARGET[i], 10, 0.125, True)
                 next_message = next_message_to_set
             elif command == 'BTN':
                 if mission_status == MISSION_STATUS_NONE or mission_status == MISSION_STATUS_SELECTED:
@@ -374,7 +372,7 @@ def readline(uart_bus):
                 if solenoid_driver_initialized and sound_controller_initialized:
                     print("All boards initialized")
                     # Stop animation
-                    for aw_device in aw_devices:
+                    for aw_device in range(len(aw_devices)):
                         for pin in range(len(pins)):
                             set_light([aw_device, pin], False)
                     # Turn on relevant lamps
@@ -577,6 +575,9 @@ while True:
     while uart_solenoid.in_waiting > 0:
         readline(uart_solenoid)
 
+    # Update blinking light animations
+    update_blink_anims()
+
     # Blink LEDs randomly during gameover
     if game_mode == MODE_GAME_OVER:
         if time.monotonic() > gameover_anim_timer + GAMEOVER_ANIM_LED_BLINK_TIME:
@@ -682,6 +683,3 @@ while True:
         set_status_text(next_message)
         message_timer = None
         next_message = None
-
-    # Update blinking light animations
-    update_blink_anims()
