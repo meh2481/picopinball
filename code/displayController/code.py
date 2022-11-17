@@ -294,6 +294,9 @@ def readline(uart_bus):
                 if mission_status != MISSION_STATUS_SELECTED:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission] or mission_hits_left != 1:
                         play_sound(HYPERSPACE_SOUND_LIST[cur_hyperspace_value])
+                        # Blink ship lights
+                        for arr in LIGHT_SPACESHIP_LASERS:
+                            blink_light(arr, NUM_HYP_BLINKS[cur_hyperspace_value], 0.125, False)
                 cur_hyperspace_trigger_timer = time.monotonic()
                 if mission_status == MISSION_STATUS_SELECTED:
                     set_status_text('Mission Accepted')
@@ -301,7 +304,11 @@ def readline(uart_bus):
                     mission_status = MISSION_STATUS_ACTIVE
                     mission_hits_left = MISSION_HIT_COUNTS[cur_mission]
                     send_uart(uart_sound, 'ACC')
-                    # TODO: Blink relevant mission light(s)
+                    # Blink ship lights
+                    for arr in LIGHT_SPACESHIP_LASERS:
+                        blink_light(arr, 10, 0.125, False)
+                    # TODO: Start blinking relevant mission light(s)
+                    # TODO: Also need a way to stop blinking these light(s) when the mission is complete
                     # Update message after a delay
                     message_timer = MESSAGE_DELAY + time.monotonic()
                     next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
@@ -321,9 +328,6 @@ def readline(uart_bus):
                     set_status_text('Hyperspace Bonus')
                     next_message = next_message_to_set
                     message_timer = MESSAGE_DELAY + time.monotonic()
-                # Blink ship lights
-                for arr in LIGHT_SPACESHIP_LASERS:
-                    blink_light(arr, NUM_HYP_BLINKS[cur_hyperspace_value], 0.125, False)
                 cur_hyperspace_value = (cur_hyperspace_value + 1) % len(HYPERSPACE_SOUND_LIST)
                 # TODO: Blink new hyperspace light
             elif command == 'DRN':
@@ -442,13 +446,21 @@ def readline(uart_bus):
                         next_message = WAITING_MISSION_SELECT_TEXT
                         message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
                         send_uart(uart_sound, f'RNK {cur_rank}')
-                        # TODO: Blink other lights around the board in celebration, too
+                        if command == 'HYP':
+                            # Blink ship lights
+                            for arr in LIGHT_SPACESHIP_LASERS:
+                                blink_light(arr, 14, 0.125, False)
+                        # TODO: Blink other lights around the board in celebration, too?
                     else:
                         set_status_text("Mission Completed")
                         next_message = WAITING_MISSION_SELECT_TEXT
                         message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
                         crash_bonus += 550 * cur_rank
                         send_uart(uart_sound, f'MSN {num_missions_completed}')
+                        if command == 'HYP':
+                            # Blink ship lights
+                            for arr in LIGHT_SPACESHIP_LASERS:
+                                blink_light(arr, 16, 0.125, False)
                 elif mission_hits_left == 1:
                     set_status_text(MISSION_STATUS_TEXT_SINGULAR[cur_mission])
                 else:
