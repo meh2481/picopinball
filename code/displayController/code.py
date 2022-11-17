@@ -117,23 +117,24 @@ RANK_NAMES = [
     'Fleet Admiral',
 ]
 
-# Drop target constants
-DROP_TARGET_FAR = 5
-DROP_TARGET_MIDDLE = 6
-DROP_TARGET_CLOSE = 7
+# Servo constants
 SERVO_TIMEOUT = 1.0
 
 # Lights constants
 pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expanders
-LIGHT_BALL_DEPLOY = [0, pins[8]] # First device, ninth pin
-LIGHT_DROP_TARGET = [
-    [0, pins[DROP_TARGET_FAR]],
-    [0, pins[DROP_TARGET_MIDDLE]],
-    [0, pins[DROP_TARGET_CLOSE]]
+LIGHT_SPACESHIP_LASERS = [
+    [0, pins[0]],
+    [0, pins[1]],
 ]
+LIGHT_NEW_GAME_BUTTON = [0, pins[2]]
 LIGHT_LEFT_FLIPPER = [0, pins[3]]
 LIGHT_RIGHT_FLIPPER = [0, pins[4]]
-LIGHT_NEW_GAME_BUTTON = [0, pins[2]]
+LIGHT_DROP_TARGET = [
+    [0, pins[5]], # Far
+    [0, pins[6]], # Middle
+    [0, pins[7]] # Close
+]
+LIGHT_BALL_DEPLOY = [0, pins[8]] # First device, ninth pin
 
 light_state = [[False for _ in range(len(pins))] for _ in range(3)]
 def set_light(arr, state):
@@ -254,7 +255,8 @@ BALL_DRAIN_DELAY = 2.5
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
-    global hyperspace_sound_list
+    global NUM_HYP_BLINKS
+    global HYPERSPACE_SOUND_LIST
     global cur_hyperspace_value
     global uart_sound
     global solenoid_driver_initialized
@@ -291,7 +293,7 @@ def readline(uart_bus):
                 increase_score((cur_hyperspace_value + 1) * 100)
                 if mission_status != MISSION_STATUS_SELECTED:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission] or mission_hits_left != 1:
-                        play_sound(hyperspace_sound_list[cur_hyperspace_value])
+                        play_sound(HYPERSPACE_SOUND_LIST[cur_hyperspace_value])
                 cur_hyperspace_trigger_timer = time.monotonic()
                 if mission_status == MISSION_STATUS_SELECTED:
                     set_status_text('Mission Accepted')
@@ -319,8 +321,11 @@ def readline(uart_bus):
                     set_status_text('Hyperspace Bonus')
                     next_message = next_message_to_set
                     message_timer = MESSAGE_DELAY + time.monotonic()
-                cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
-                # TODO: Blink new hyperspace light and ship lights
+                # Blink ship lights
+                for arr in LIGHT_SPACESHIP_LASERS:
+                    blink_light(arr, NUM_HYP_BLINKS[cur_hyperspace_value], 0.125, False)
+                cur_hyperspace_value = (cur_hyperspace_value + 1) % len(HYPERSPACE_SOUND_LIST)
+                # TODO: Blink new hyperspace light
             elif command == 'DRN':
                 # Ball drained
                 print("Ball drained!")
@@ -556,12 +561,19 @@ ir_scores = [100, 500, 200]  # Score values for each IR sensor
 NUM_PINS = len(pins)
 PIN_DELAY = 750
 TOTAL_CYCLE = NUM_PINS * PIN_DELAY
-hyperspace_sound_list = [
+HYPERSPACE_SOUND_LIST = [
     HYPERSPACE_LAUNCH_SOUND,
     HYPERSPACE_JACKPOT_SOUND,
     HYPERSPACE_LAUNCH_SOUND,
     HYPERSPACE_EXTRA_BALL_SOUND,
     HYPERSPACE_GRAVITY_WELL_SOUND
+]
+NUM_HYP_BLINKS = [
+    14,
+    24,
+    14,
+    10,
+    18
 ]
 cur_hyperspace_value = 0
 gameover_anim_timer = time.monotonic()
