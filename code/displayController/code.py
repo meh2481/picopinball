@@ -126,7 +126,7 @@ SERVO_TIMEOUT = 1.0
 # Lights constants
 pins = [0, 11, 10, 9, 8, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15]  # The physical order of the pins on the I2C expanders
 LIGHT_BALL_DEPLOY = [0, pins[8]] # First device, ninth pin
-DROP_TARGET_PIN_MAPPING = [
+LIGHT_DROP_TARGET = [
     [0, pins[DROP_TARGET_FAR]],
     [0, pins[DROP_TARGET_MIDDLE]],
     [0, pins[DROP_TARGET_CLOSE]]
@@ -135,11 +135,41 @@ LIGHT_LEFT_FLIPPER = [0, pins[3]]
 LIGHT_RIGHT_FLIPPER = [0, pins[4]]
 LIGHT_NEW_GAME_BUTTON = [0, pins[2]]
 
+light_state = [[False] * 16 for _ in range(2)]
 def set_light(arr, state):
     """Set the light state."""
     global aw_devices
+    global light_state
     value = 255 if state else 0
     aw_devices[arr[0]].set_constant_current(arr[1], value)
+    light_state[arr[0]][arr[1]] = state
+
+light_blink_anims = []
+def blink_light(arr, num_blinks, period, stay_off_on_complete):
+    """Blink a light."""
+    global light_blink_anims
+    light_blink_anims.append(
+        (arr, num_blinks, period, stay_off_on_complete, time.monotonic())
+    )
+
+def update_blink_anims():
+    """Update the blink animations."""
+    # TODO: We could feasibly fade with constant current instead of just on/off
+    global light_blink_anims, aw_devices, light_state
+    # Iterate backwards so we can delete from the list as we go
+    for i in reversed(range(len(light_blink_anims))):
+        arr, num_blinks, period, stay_off_on_complete, start_time = light_blink_anims[i]
+        if num_blinks == 0:
+            if stay_off_on_complete:
+                set_light(arr, False)
+            else:
+                set_light(arr, True)
+            del light_blink_anims[i]
+        else:
+            elapsed = time.monotonic() - start_time
+            if elapsed > period:
+                light_blink_anims[i] = (arr, num_blinks - 1, period, stay_off_on_complete, time.monotonic())
+                set_light(arr, not light_state[arr[0]][arr[1]])
 
 # Release any resources currently in use for the displays
 displayio.release_displays()
@@ -247,6 +277,7 @@ def readline(uart_bus):
     global cur_rank
     global message_timer
     global next_message
+    global light_blink_anims
     data = uart_bus.readline()
     mission_accepted_this_frame = False
     if data is not None:
@@ -270,6 +301,7 @@ def readline(uart_bus):
                     mission_status = MISSION_STATUS_ACTIVE
                     mission_hits_left = MISSION_HIT_COUNTS[cur_mission]
                     send_uart(uart_sound, 'ACC')
+                    # TODO: Blink relevant mission light(s)
                     # Update message after a delay
                     message_timer = MESSAGE_DELAY + time.monotonic()
                     next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
@@ -290,10 +322,12 @@ def readline(uart_bus):
                     next_message = next_message_to_set
                     message_timer = MESSAGE_DELAY + time.monotonic()
                 cur_hyperspace_value = (cur_hyperspace_value + 1) % len(hyperspace_sound_list)
+                # TODO: Blink new hyperspace light and ship lights
             elif command == 'DRN':
                 # Ball drained
                 print("Ball drained!")
                 game_mode = MODE_BALL_DRAIN
+                # TODO: Handle replay/redeploy
                 set_status_text(f"Crash Bonus {crash_bonus * score_multiplier}")
                 increase_score(crash_bonus)
                 # Relay to sound board
@@ -302,6 +336,8 @@ def readline(uart_bus):
                 ball_drained_timer = time.monotonic()
                 cur_mission = None
                 mission_status = MISSION_STATUS_NONE
+                # TODO: Turn off any mission lights
+                light_blink_anims = []
             elif command == 'DTR':
                 # Drop target reset
                 print("Drop target reset!")
@@ -315,6 +351,9 @@ def readline(uart_bus):
                     next_message_to_set = next_message
                 set_status_text(f"Score Multiplier {score_multiplier}x")
                 message_timer = MESSAGE_DELAY + time.monotonic()
+                # Blink all 3 drop target lights
+                for i in range(3):
+                    blink_light(LIGHT_DROP_TARGET[i], 10, 0.2, True)
                 next_message = next_message_to_set
             elif command == 'BTN':
                 if mission_status == MISSION_STATUS_NONE or mission_status == MISSION_STATUS_SELECTED:
@@ -337,10 +376,10 @@ def readline(uart_bus):
                     # Stop animation
                     for aw_device in aw_devices:
                         for pin in range(len(pins)):
-                            aw_device.set_constant_current(pin, 0)
+                            set_light([aw_device, pin], False)
                     # Turn on relevant lamps
-                    for i in range(len(DROP_TARGET_PIN_MAPPING)):
-                        set_light(DROP_TARGET_PIN_MAPPING[i], True)
+                    for i in range(len(LIGHT_DROP_TARGET)):
+                        set_light(LIGHT_DROP_TARGET[i], True)
                     # Reload the ball
                     send_uart(uart_solenoid, "RLD")
                     game_mode = MODE_BALL_LAUNCH
@@ -360,7 +399,7 @@ def readline(uart_bus):
             elif command == 'DT':
                 print("Drop target triggered")
                 dt_pin = int(command_list[1])
-                set_light(DROP_TARGET_PIN_MAPPING[dt_pin], False)
+                set_light(LIGHT_DROP_TARGET[dt_pin], False)
                 increase_score(1000)
             elif command == 'PB':
                 print("Pop Bumper Triggered")
@@ -400,6 +439,7 @@ def readline(uart_bus):
                         next_message = WAITING_MISSION_SELECT_TEXT
                         message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
                         send_uart(uart_sound, f'RNK {cur_rank}')
+                        # TODO: Blink other lights around the board in celebration, too
                     else:
                         set_status_text("Mission Completed")
                         next_message = WAITING_MISSION_SELECT_TEXT
@@ -562,8 +602,9 @@ while True:
         drop_target_reset_sound_timer = None
         play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
         # Reset drop target lights
-        for i in range(len(DROP_TARGET_PIN_MAPPING)):
-            set_light(DROP_TARGET_PIN_MAPPING[i], True)
+        # TODO: Blinking lights should handle this already
+        for i in range(len(LIGHT_DROP_TARGET)):
+            set_light(LIGHT_DROP_TARGET[i], True)
 
     # Decrease cur_hyperspace_value after a delay & turn off lights
     if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
@@ -620,12 +661,15 @@ while True:
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             num_missions_completed = 0
-            # Reset drop target lights
-            for i in range(len(DROP_TARGET_PIN_MAPPING)):
-                set_light(DROP_TARGET_PIN_MAPPING[i], True)
+            # Turn off all lights
+            for aw_device in range(len(aw_devices)):
+                for pin in range(len(pins)):
+                    set_light([aw_device, pin], False)
+            # Turn on drop target lights
+            for i in range(len(LIGHT_DROP_TARGET)):
+                set_light(LIGHT_DROP_TARGET[i], True)
             send_uart(uart_solenoid, "RST")
             send_uart(uart_sound, "RST")
-            # TODO: Startup anim and delay again
         elif game_mode == MODE_PLAYING:
             print("New game button pressed; manual reload")
         send_uart(uart_solenoid, "RLD")
@@ -638,3 +682,6 @@ while True:
         set_status_text(next_message)
         message_timer = None
         next_message = None
+
+    # Update blinking light animations
+    update_blink_anims()

@@ -164,7 +164,6 @@ def readline_comm(uart_recv):
                 # RST - Reset and start new game
                 print("Got reset command")
                 play_sound(uart, STARTUP_SOUND)
-                # TODO: Delay for startup sound to finish
                 led_anim_state = ANIM_STATE_LAUNCHING
                 drained_time = 0
                 pixels_perimeter.fill((0, 0, 0))
