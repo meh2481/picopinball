@@ -156,7 +156,6 @@ def blink_light(arr, num_blinks, period, stay_off_on_complete):
 
 def update_blink_anims():
     """Update the blink animations."""
-    # TODO: We could feasibly fade with constant current instead of just on/off
     global light_blink_anims, aw_devices, light_state
     # Iterate backwards so we can delete from the list as we go
     for i in reversed(range(len(light_blink_anims))):
@@ -450,7 +449,6 @@ def readline(uart_bus):
                             # Blink ship lights
                             for arr in LIGHT_SPACESHIP_LASERS:
                                 blink_light(arr, 14, 0.125, False)
-                        # TODO: Blink other lights around the board in celebration, too?
                     else:
                         set_status_text("Mission Completed")
                         next_message = WAITING_MISSION_SELECT_TEXT
@@ -626,10 +624,6 @@ while True:
     if drop_target_reset_sound_timer and cur_time > drop_target_reset_sound_timer:
         drop_target_reset_sound_timer = None
         play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
-        # Reset drop target lights
-        # TODO: Blinking lights should handle this already
-        for i in range(len(LIGHT_DROP_TARGET)):
-            set_light(LIGHT_DROP_TARGET[i], True)
 
     # Decrease cur_hyperspace_value after a delay & turn off lights
     if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
