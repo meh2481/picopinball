@@ -141,6 +141,7 @@ def set_light(arr, state):
     """Set the light state."""
     global aw_devices
     global light_state
+    # TODO: full brightness is maybe too bright for sequin LEDs
     value = 255 if state else 0
     print(f'Setting light {arr[0]},{arr[1]} to {state}')
     aw_devices[arr[0]].set_constant_current(arr[1], value)
@@ -150,6 +151,8 @@ light_blink_anims = []
 def blink_light(arr, num_blinks, period, stay_off_on_complete):
     """Blink a light."""
     global light_blink_anims
+    # TODO: Check if existing blink anim for arr, and delete it if so
+    # TODO: Add callback lambda for when blink anim is done
     light_blink_anims.append(
         (arr, num_blinks, period, stay_off_on_complete, time.monotonic())
     )
