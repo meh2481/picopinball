@@ -37,6 +37,7 @@ def send_uart(str):
     uart.write(bytearray(f"{str}\r\n", "utf-8"))
 
 reload_solenoid_timer = None
+game_over = False
 
 def readline():
     """Read a line from the UART bus and print it to console."""
@@ -45,6 +46,11 @@ def readline():
     global reload_solenoid_timer
     global drop_target_state
     global drop_target_start_time
+    global game_over
+    global solenoid_l
+    global solenoid_r
+    global sol_l_rose_time
+    global sol_r_rose_time
     data = uart.readline()
     if data is not None:
         # convert bytearray to string
@@ -57,9 +63,20 @@ def readline():
                 reload_solenoid.value = True
                 reload_solenoid_timer = time.monotonic()
             elif command == 'RST':
+                game_over = False
                 # Reset the drop targets
                 drop_target_state = DROP_TARGET_STATE_WAIT
                 drop_target_start_time = time.monotonic()
+                # Fire the reload solenoid
+                reload_solenoid.value = True
+                reload_solenoid_timer = time.monotonic()
+            elif command == 'GOV':
+                # Game over
+                game_over = True
+                solenoid_l.duty_cycle = 0
+                solenoid_r.duty_cycle = 0
+                sol_l_rose_time = None
+                sol_r_rose_time = None
             else:
                 print(f'Unknown command: {command}')
 
@@ -233,30 +250,32 @@ while True:
     button_l_debouncer.update()
     button_r_debouncer.update()
 
-    if button_l_debouncer.rose:
-        sol_l_rose_time = cur_time
-        solenoid_l.duty_cycle = PWM_MAX_DUTY_CYCLE
-        send_uart("FLU")
-    elif button_l_debouncer.fell:
-        solenoid_l.duty_cycle = 0
-        sol_l_rose_time = None
-        send_uart("FLD")
-    elif sol_l_rose_time is not None and cur_time - sol_l_rose_time > FLIPPER_PWM_DELAY:
-        # PWM the solenoids after a certain period of time to make them last longer
-        solenoid_l.duty_cycle = PWM_FLIPPER_SUSTAIN
-        sol_l_rose_time = None
+    if not game_over:
+        # No flipper control during gameover
+        if button_l_debouncer.rose:
+            sol_l_rose_time = cur_time
+            solenoid_l.duty_cycle = PWM_MAX_DUTY_CYCLE
+            send_uart("FLU")
+        elif button_l_debouncer.fell:
+            solenoid_l.duty_cycle = 0
+            sol_l_rose_time = None
+            send_uart("FLD")
+        elif sol_l_rose_time is not None and cur_time - sol_l_rose_time > FLIPPER_PWM_DELAY:
+            # PWM the solenoids after a certain period of time to make them last longer
+            solenoid_l.duty_cycle = PWM_FLIPPER_SUSTAIN
+            sol_l_rose_time = None
 
-    if button_r_debouncer.rose:
-        sol_r_rose_time = cur_time
-        solenoid_r.duty_cycle = PWM_MAX_DUTY_CYCLE
-        send_uart("FRU")
-    elif button_r_debouncer.fell:
-        solenoid_r.duty_cycle = 0
-        sol_r_rose_time = None
-        send_uart("FRD")
-    elif sol_r_rose_time is not None and cur_time - sol_r_rose_time > FLIPPER_PWM_DELAY:
-        solenoid_r.duty_cycle = PWM_FLIPPER_SUSTAIN
-        sol_r_rose_time = None
+        if button_r_debouncer.rose:
+            sol_r_rose_time = cur_time
+            solenoid_r.duty_cycle = PWM_MAX_DUTY_CYCLE
+            send_uart("FRU")
+        elif button_r_debouncer.fell:
+            solenoid_r.duty_cycle = 0
+            sol_r_rose_time = None
+            send_uart("FRD")
+        elif sol_r_rose_time is not None and cur_time - sol_r_rose_time > FLIPPER_PWM_DELAY:
+            solenoid_r.duty_cycle = PWM_FLIPPER_SUSTAIN
+            sol_r_rose_time = None
 
     # Update slingshots
     # Slingshots only launch after a delay since last launch, to avoid chatter

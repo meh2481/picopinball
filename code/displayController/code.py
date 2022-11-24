@@ -651,6 +651,7 @@ while True:
             message_timer = cur_time + MESSAGE_DELAY_LONGER
             next_message = "Press New Game Button"
             send_uart(uart_sound, "GOV")
+            send_uart(uart_solenoid, "GOV")
         else:
             text_area_ball.text = str(ball)
             send_uart(uart_solenoid, "RLD")
@@ -694,7 +695,7 @@ while True:
             send_uart(uart_sound, "RST")
         elif game_mode == MODE_PLAYING:
             print("New game button pressed; manual reload")
-        send_uart(uart_solenoid, "RLD")
+            send_uart(uart_solenoid, "RLD")
     elif new_game_button_debouncer.rose:
         print("New game button released")
         set_light(LIGHT_NEW_GAME_BUTTON, False)
