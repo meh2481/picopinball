@@ -135,8 +135,43 @@ LIGHT_DROP_TARGET = [
     [0, pins[7]] # Close
 ]
 LIGHT_BALL_DEPLOY = [0, pins[8]] # First device, ninth pin
+LIGHT_MISSION_SELECT = [
+    [0, pins[9]], # Top
+    [0, pins[10]], # Middle
+    [0, pins[11]], # Bottom
+]
+LIGHT_DT_MULTIPLIER = [
+    [0, pins[12]], # Bottom - 2x
+    [0, pins[13]], # Middle - 3x
+    [0, pins[14]], # Middle - 4x
+    [0, pins[15]], # Top - 5x
+]
+# Second device
+LIGHT_HYPERSPACE_ARROW = [
+    [1, pins[0]], # Bottom
+    [1, pins[1]], # Middle
+    [1, pins[2]], # Top
+]
+LIGHT_MISSION_ARROW = [
+    [[1, pins[3]]], # Attack bumpers
+    [[1, pins[4]], [1, pins[5]]], # Slingshots
+    [[1, pins[0]]], # Hyperspace (reuse top hyperspace arrow)
+]
+LIGHT_RE_DEPLOY = [1, pins[6]]
+LIGHT_EXTRA_BALL = [1, pins[7]]
+LIGHT_RE_ENTRY = [
+    [1, pins[8]], # Left
+    [1, pins[9]], # Middle
+    [1, pins[10]], # Right
+]
+LIGHT_HYPERSPACE_BAR = [
+    [1, pins[11]], # Bar 4 (inner)
+    [1, pins[12]], # Bar 3
+    [1, pins[13]], # Bar 2
+    [1, pins[14]], # Bar 1 (outer)
+]
 
-light_state = [[False for _ in range(len(pins))] for _ in range(3)]
+light_state = [[False for _ in range(len(pins))] for _ in range(2)]
 def set_light(arr, state):
     """Set the light state."""
     global aw_devices
@@ -487,18 +522,13 @@ print("Found AW9523 1")
 # Second one has A0 jumper bridged
 aw2 = adafruit_aw9523.AW9523(i2c, address=0x59)
 print("Found AW9523 2")
-# Third one has A1 jumper bridged
-aw3 = adafruit_aw9523.AW9523(i2c, address=0x5A)
-print("Found AW9523 3")
-aw_devices = [aw1, aw2, aw3]
+aw_devices = [aw1, aw2]
 
 # Set all pins to outputs and LED (const current) mode
 aw1.LED_modes = 0xFFFF
 aw1.directions = 0xFFFF
 aw2.LED_modes = 0xFFFF
 aw2.directions = 0xFFFF
-aw3.LED_modes = 0xFFFF
-aw3.directions = 0xFFFF
 
 # Setup SPI bus
 spi = busio.SPI(board.GP14, MOSI=board.GP15, MISO=board.GP12)
