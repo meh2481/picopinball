@@ -130,9 +130,9 @@ LIGHT_NEW_GAME_BUTTON = [0, pins[2]]
 LIGHT_LEFT_FLIPPER = [0, pins[3]]
 LIGHT_RIGHT_FLIPPER = [0, pins[4]]
 LIGHT_DROP_TARGET = [
-    [0, pins[5]], # Far
+    [0, pins[5]], # Front
     [0, pins[6]], # Middle
-    [0, pins[7]] # Close
+    [0, pins[7]] # Back
 ]
 LIGHT_BALL_DEPLOY = [0, pins[8]] # First device, ninth pin
 LIGHT_MISSION_SELECT = [
@@ -176,8 +176,7 @@ def set_light(arr, state):
     """Set the light state."""
     global aw_devices
     global light_state
-    # TODO: full brightness is maybe too bright for sequin LEDs
-    value = 255 if state else 0
+    value = 200 if state else 0
     print(f'Setting light {arr[0]},{arr[1]} to {state}')
     aw_devices[arr[0]].set_constant_current(arr[1], value)
     light_state[arr[0]][arr[1]] = state
@@ -186,7 +185,7 @@ light_blink_anims = []
 def blink_light(arr, num_blinks, period, stay_off_on_complete):
     """Blink a light."""
     global light_blink_anims
-    # TODO: Check if existing blink anim for arr, and delete it if so
+    cancel_anim(arr)
     # TODO: Add callback lambda for when blink anim is done
     light_blink_anims.append(
         (arr, num_blinks, period, stay_off_on_complete, time.monotonic())
@@ -200,12 +199,21 @@ def update_blink_anims():
         arr, num_blinks, period, stay_off_on_complete, start_time = light_blink_anims[i]
         if num_blinks == 0:
             set_light(arr, stay_off_on_complete)
+            # TODO: Callback
             del light_blink_anims[i]
         else:
             elapsed = time.monotonic() - start_time
             if elapsed > period:
                 light_blink_anims[i] = (arr, num_blinks - 1, period, stay_off_on_complete, time.monotonic())
                 set_light(arr, not light_state[arr[0]][arr[1]])
+
+def cancel_anim(arr):
+    """Cancel a blink animation."""
+    global light_blink_anims
+    for i in reversed(range(len(light_blink_anims))):
+        if light_blink_anims[i][0] == arr:
+            # TODO: Callback
+            del light_blink_anims[i]
 
 # Release any resources currently in use for the displays
 displayio.release_displays()
@@ -398,15 +406,20 @@ def readline(uart_bus):
                 # Blink all 3 drop target lights
                 for i in range(3):
                     blink_light(LIGHT_DROP_TARGET[i], 10, 0.125, True)
+                # Blink new multiplier light
+                blink_light(LIGHT_DT_MULTIPLIER[score_multiplier - 2], 10, 0.11, True)
                 next_message = next_message_to_set
             elif command == 'BTN':
+                button_num = int(command_list[1])
                 if mission_status == MISSION_STATUS_NONE or mission_status == MISSION_STATUS_SELECTED:
-                    button_num = int(command_list[1])
                     set_status_text(f"Launch to Perform {MISSION_NAMES[button_num]}")
                     cur_mission = button_num
                     mission_status = MISSION_STATUS_SELECTED
                 increase_score(50)
                 crash_bonus += 25
+                # Blink new mission light
+                blink_light(LIGHT_MISSION_SELECT[button_num], 10, 0.125, True)
+                # TODO: Turn off other mission lights
             elif command == 'INI':
                 board_initialized = command_list[1]
                 if board_initialized == 'solenoidDriver':
@@ -440,6 +453,8 @@ def readline(uart_bus):
                 set_status_text(WAITING_MISSION_SELECT_TEXT)
                 # Turn off ball deploy light
                 set_light(LIGHT_BALL_DEPLOY, False)
+                # Turn on new IR light
+                set_light(LIGHT_RE_ENTRY[int(command_list[1])], True)
             elif command == 'DT':
                 print("Drop target triggered")
                 dt_pin = int(command_list[1])
@@ -454,12 +469,14 @@ def readline(uart_bus):
             elif command == 'FLU':
                 print("Left flipper Up")
                 set_light(LIGHT_LEFT_FLIPPER, True)
+                # TODO: Cycle re-entry lights
             elif command == 'FLD':
                 print("Left flipper Down")
                 set_light(LIGHT_LEFT_FLIPPER, False)
             elif command == 'FRU':
                 print("Right flipper Up")
                 set_light(LIGHT_RIGHT_FLIPPER, True)
+                # TODO: Cycle re-entry lights
             elif command == 'FRD':
                 print("Right flipper Down")
                 set_light(LIGHT_RIGHT_FLIPPER, False)
@@ -470,6 +487,7 @@ def readline(uart_bus):
             if mission_status == MISSION_STATUS_ACTIVE and command == MISSION_TARGETS[cur_mission] and not mission_accepted_this_frame:
                 mission_hits_left -= 1
                 if mission_hits_left == 0:
+                    # TODO: Reset mission lights
                     mission_status = MISSION_STATUS_NONE
                     increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
                     num_missions_completed += 1
