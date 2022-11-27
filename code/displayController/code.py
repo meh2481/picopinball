@@ -93,7 +93,7 @@ MISSION_NAMES = [
     'Thruster Tests',
     'Orbital Refueling',
 ]
-MISSION_HIT_COUNTS = [5, 6, 3]
+MISSION_HIT_COUNTS = [2, 3, 1]
 MISSION_TARGETS = ['PB', 'SLG', 'HYP']
 MISSION_STATUS_TEXT_PLURAL = [
     '{} Engine Bumper Hits Left',
@@ -270,12 +270,14 @@ def increase_score(add):
     global uart_sound
     global game_mode
     global redeploy_timer
+    global cur_hyperspace_trigger_timer
     score += add * score_multiplier
     # Reverse because RTL idk what I'm doing
     text_area_score.text = ''.join(reversed(f"{score}"))
     if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
         game_mode = MODE_PLAYING
         redeploy_timer = time.monotonic() + REDEPLOY_DELAY
+        cur_hyperspace_trigger_timer = time.monotonic()
         if mission_status == MISSION_STATUS_NONE:
             set_status_text(WAITING_MISSION_SELECT_TEXT)
         send_uart(uart_sound, 'PNT')
@@ -358,7 +360,7 @@ def readline(uart_bus):
                     set_status_text('Mission Accepted')
                     mission_accepted_this_frame = True
                     mission_status = MISSION_STATUS_ACTIVE
-                    mission_hits_left = MISSION_HIT_COUNTS[cur_mission]
+                    mission_hits_left = MISSION_HIT_COUNTS[cur_mission] + cur_rank
                     send_uart(uart_sound, 'ACC')
                     # Blink ship lights
                     for arr in LIGHT_SPACESHIP_LASERS:
@@ -398,11 +400,20 @@ def readline(uart_bus):
                     next_message = next_message_to_set
                     message_timer = MESSAGE_DELAY + time.monotonic()
                 if cur_hyperspace_value + 1 < len(HYPERSPACE_SOUND_LIST):
+                    # Cancel animations and turn on lights less than this one
+                    for i in range(len(LIGHT_HYPERSPACE_BAR)):
+                        arr = LIGHT_HYPERSPACE_BAR[i]
+                        cancel_anim(arr, False)
+                        if i < cur_hyperspace_value:
+                            set_light(arr, True)
                     # Blink new hyperspace light and keep on
+                    # TODO: Count depending on cur sound
                     blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 10, 0.125, True)
                 else:
                     # Blink all hyperspace lights then turn off
+                    # TODO: Count depending on cur sound
                     for arr in LIGHT_HYPERSPACE_BAR:
+                        cancel_anim(arr, False)
                         blink_light(arr, 10, 0.125, False)
                 cur_hyperspace_value = (cur_hyperspace_value + 1) % len(HYPERSPACE_SOUND_LIST)
             elif command == 'DRN':
@@ -489,6 +500,7 @@ def readline(uart_bus):
                     crash_bonus += 100
                 else:
                     redeploy_timer = time.monotonic() + REDEPLOY_DELAY
+                    cur_hyperspace_trigger_timer = time.monotonic()
                 game_mode = MODE_PLAYING
                 set_status_text(WAITING_MISSION_SELECT_TEXT)
                 # Turn off ball deploy light
@@ -722,15 +734,21 @@ while True:
         play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
 
     # Decrease cur_hyperspace_value after a delay & turn off lights
-    if cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
-        cur_hyperspace_value -= 1
-        cur_hyperspace_trigger_timer = cur_time
-        if cur_hyperspace_value < 0:
-            cur_hyperspace_value = 0
-        else:
+    if game_mode == MODE_PLAYING and cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
+        if cur_hyperspace_value > 0:
+            cur_hyperspace_trigger_timer = cur_time # Force this to not trigger again for another cycle
+
+            # Decrease hyperspace value callback
+            def hyperspace_decrease_callback():
+                global cur_hyperspace_value
+                global cur_hyperspace_trigger_timer
+                cur_hyperspace_value -= 1
+                if cur_hyperspace_value < 0:
+                    cur_hyperspace_value = 0
+                cur_hyperspace_trigger_timer = cur_time
+
             # Blink hyperspace bar
-            # TODO: Callback is what decreases cur hyperspace value
-            blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 20, 0.125, False)
+            blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value - 1], 30, 0.125, False, on_complete=hyperspace_decrease_callback)
 
     # Reload the ball if we should
     if ball_drained_timer and cur_time > ball_drained_timer + BALL_DRAIN_DELAY:
@@ -749,7 +767,7 @@ while True:
             set_light(LIGHT_BALL_DEPLOY, True)
             cancel_anim(LIGHT_EXTRA_BALL)
             set_light(LIGHT_EXTRA_BALL, False)
-            cancel_anim(LIGHT_RE_DEPLOY)
+            cancel_anim(LIGHT_RE_DEPLOY, False)
             set_light(LIGHT_RE_DEPLOY, True)
         else:
             cur_hyperspace_value = 0
@@ -799,7 +817,7 @@ while True:
             crash_bonus = DEFAULT_CRASH_BONUS
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
-            cancel_anim(LIGHT_RE_DEPLOY)
+            cancel_anim(LIGHT_RE_DEPLOY, False)
             set_light(LIGHT_RE_DEPLOY, True)
             score = 0
             ball = 1
@@ -835,6 +853,11 @@ while True:
     
     if redeploy_timer and cur_time > redeploy_timer:
         redeploy_timer = None
-        redeploy_ball = False
-        # TODO: Callback that turns off redeploy global
-        blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False)#, on_complete=lambda: redeploy_ball = False)
+
+        # Callback that turns off redeploy global
+        def redeploy_callback():
+            global redeploy_ball
+            redeploy_ball = False
+            play_sound(CENTER_POST_GONE_SOUND)
+
+        blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False, on_complete=redeploy_callback)
