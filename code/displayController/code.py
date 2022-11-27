@@ -300,7 +300,7 @@ sound_controller_initialized = False
 solenoid_driver_initialized = False
 drop_target_reset_sound_timer = None
 DROP_TARGET_RESET_SOUND_DELAY = 0.75
-HYPERSPACE_DECREASE_TIMER = 60  # Delay to decrease the hyperspace bonus
+HYPERSPACE_DECREASE_TIMER = 20  # Delay to decrease the hyperspace bonus
 cur_hyperspace_trigger_timer = 0
 ball_drained_timer = None
 extra_ball = False
@@ -366,7 +366,7 @@ def readline(uart_bus):
                     # Start blinking relevant mission light(s)
                     # TODO: Allow for multiple lights per anim so the blinking can't become desynced
                     for arr in LIGHT_MISSION_ARROW[cur_mission]:
-                        blink_light(arr, 32767, 0.25, False)
+                        blink_light(arr, sys.maxsize, 0.25, False)
                     # Update message after a delay
                     message_timer = MESSAGE_DELAY + time.monotonic()
                     next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
@@ -730,7 +730,7 @@ while True:
         else:
             # Blink hyperspace bar
             # TODO: Callback is what decreases cur hyperspace value
-            blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 10, 0.125, False)
+            blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 20, 0.125, False)
 
     # Reload the ball if we should
     if ball_drained_timer and cur_time > ball_drained_timer + BALL_DRAIN_DELAY:
