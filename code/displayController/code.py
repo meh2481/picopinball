@@ -419,19 +419,23 @@ def readline(uart_bus):
             elif command == 'DRN':
                 # Ball drained
                 print("Ball drained!")
-                game_mode = MODE_BALL_DRAIN
-                if not extra_ball and not redeploy_ball:
-                    set_status_text(f"Crash Bonus {crash_bonus * score_multiplier}")
-                    increase_score(crash_bonus)
-                    cur_mission = None
-                    mission_status = MISSION_STATUS_NONE
-                    # Turn off any animations
-                    light_blink_anims = []
-                    # Turn off mission lights
-                    for arr in LIGHT_MISSION_SELECT:
-                        set_light(arr, False)
-                # Relay to sound board
-                send_uart(uart_sound, command)
+                if game_mode != MODE_BALL_DRAIN:
+                    game_mode = MODE_BALL_DRAIN
+                    if not extra_ball and not redeploy_ball:
+                        set_status_text(f"Crash Bonus {crash_bonus * score_multiplier}")
+                        increase_score(crash_bonus)
+                        cur_mission = None
+                        mission_status = MISSION_STATUS_NONE
+                        # Turn off any animations
+                        light_blink_anims = []
+                        # Turn off mission lights
+                        for arr in LIGHT_MISSION_SELECT:
+                            set_light(arr, False)
+                    elif redeploy_ball: # Stop redeploy blink animation if currently blinking
+                        cancel_anim(LIGHT_RE_DEPLOY, False)
+                        set_light(LIGHT_RE_DEPLOY, True)
+                    # Relay to sound board
+                    send_uart(uart_sound, command)
                 # Wait for a bit before reloading
                 ball_drained_timer = time.monotonic()
             elif command == 'DTR':
@@ -459,6 +463,7 @@ def readline(uart_bus):
                     set_status_text(f"Launch to Perform {MISSION_NAMES[button_num]}")
                     cur_mission = button_num
                     mission_status = MISSION_STATUS_SELECTED
+                    # TODO: Turn on hyperspace arrow animation
                 increase_score(50)
                 crash_bonus += 25
                 # Blink new mission light
