@@ -223,6 +223,11 @@ def readline_comm(uart_recv):
                 ring_red_pulse_anim.reset()
                 num_complete_missions = 0
                 cur_rank = 0
+                # Update spin anims length
+                ring_inner_spin_anim._size = 1
+                ring_inner_spin_anim._spacing = 11
+                ring_outer_spin_anim._size = 0
+                ring_outer_spin_anim._spacing = 24
             elif command == 'ACC':
                 play_sound(uart, MISSION_ACCEPTED_SOUND)
                 ring_outer_spin_anim.reset()

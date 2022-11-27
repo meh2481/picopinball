@@ -258,7 +258,7 @@ def init_uart(tx_pin, rx_pin):
 score_multiplier = 1
 redeploy_timer = None
 redeploy_ball = True
-REDEPLOY_DELAY = 15
+REDEPLOY_DELAY = 6
 
 def increase_score(add):
     """Update the score on the screen."""
@@ -477,6 +477,7 @@ def readline(uart_bus):
                     set_status_text("Launch Ball")
                     # Turn on ball deploy light
                     set_light(LIGHT_BALL_DEPLOY, True)
+                    set_light(LIGHT_RE_DEPLOY, True)
             elif command == 'IR':
                 print("IR sensor triggered")
                 increase_score(ir_scores[int(command_list[1])])
@@ -733,6 +734,7 @@ while True:
                 set_status_text("Extra Ball")
             else:
                 set_status_text("Re-Deploy")
+            game_mode = MODE_BALL_LAUNCH
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
             set_light(LIGHT_EXTRA_BALL, False)
@@ -758,6 +760,9 @@ while True:
                 # Turn on ball deploy light
                 set_light(LIGHT_BALL_DEPLOY, True)
                 set_light(LIGHT_RE_DEPLOY, True)
+                # Turn off mission select lights
+                for light in LIGHT_MISSION_SELECT:
+                    set_light(light, False)
         extra_ball = False
         redeploy_ball = True
 
@@ -772,6 +777,7 @@ while True:
             crash_bonus = DEFAULT_CRASH_BONUS
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
+            set_light(LIGHT_RE_DEPLOY, True)
             score = 0
             ball = 1
             text_area_score.text = str(score)
@@ -791,9 +797,9 @@ while True:
                 set_light(LIGHT_DROP_TARGET[i], True)
             send_uart(uart_solenoid, "RST")
             send_uart(uart_sound, "RST")
-        elif game_mode == MODE_PLAYING:
+        elif game_mode == MODE_PLAYING or game_mode == MODE_BALL_LAUNCH:
             print("New game button pressed; manual reload")
-            send_uart(uart_solenoid, "RLD")
+        send_uart(uart_solenoid, "RLD")
     elif new_game_button_debouncer.rose:
         print("New game button released")
         set_light(LIGHT_NEW_GAME_BUTTON, False)
@@ -804,6 +810,7 @@ while True:
         message_timer = None
         next_message = None
     
-    if ball_drained_timer and cur_time > ball_drained_timer:
-        ball_drained_timer = None
-        # blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False, on_complete=lambda: redeploy_ball = False)
+    if redeploy_timer and cur_time > redeploy_timer:
+        redeploy_timer = None
+        redeploy_ball = False
+        blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False)#, on_complete=lambda: redeploy_ball = False)
