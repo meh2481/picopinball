@@ -182,13 +182,12 @@ def set_light(arr, state):
     light_state[arr[0]][arr[1]] = state
 
 light_blink_anims = []
-def blink_light(arr, num_blinks, period, stay_off_on_complete):
+def blink_light(arr, num_blinks, period, stay_off_on_complete, on_complete=lambda: None):
     """Blink a light."""
     global light_blink_anims
     cancel_anim(arr)
-    # TODO: Add callback lambda for when blink anim is done
     light_blink_anims.append(
-        (arr, num_blinks, period, stay_off_on_complete, time.monotonic())
+        (arr, num_blinks, period, stay_off_on_complete, time.monotonic(), on_complete)
     )
 
 def update_blink_anims():
@@ -196,23 +195,24 @@ def update_blink_anims():
     global light_blink_anims, aw_devices, light_state
     # Iterate backwards so we can delete from the list as we go
     for i in reversed(range(len(light_blink_anims))):
-        arr, num_blinks, period, stay_off_on_complete, start_time = light_blink_anims[i]
+        arr, num_blinks, period, stay_off_on_complete, start_time, on_complete = light_blink_anims[i]
         if num_blinks == 0:
             set_light(arr, stay_off_on_complete)
-            # TODO: Callback
+            on_complete()
             del light_blink_anims[i]
         else:
             elapsed = time.monotonic() - start_time
             if elapsed > period:
-                light_blink_anims[i] = (arr, num_blinks - 1, period, stay_off_on_complete, time.monotonic())
+                light_blink_anims[i] = (arr, num_blinks - 1, period, stay_off_on_complete, time.monotonic(), on_complete)
                 set_light(arr, not light_state[arr[0]][arr[1]])
 
-def cancel_anim(arr):
+def cancel_anim(arr, call_callback=True):
     """Cancel a blink animation."""
     global light_blink_anims
     for i in reversed(range(len(light_blink_anims))):
         if light_blink_anims[i][0] == arr:
-            # TODO: Callback
+            if call_callback:
+                light_blink_anims[i][5]() # Call callback
             del light_blink_anims[i]
 
 # Release any resources currently in use for the displays
@@ -256,6 +256,9 @@ def init_uart(tx_pin, rx_pin):
     return uart
 
 score_multiplier = 1
+redeploy_timer = None
+redeploy_ball = True
+REDEPLOY_DELAY = 15
 
 def increase_score(add):
     """Update the score on the screen."""
@@ -264,11 +267,13 @@ def increase_score(add):
     global text_area_score
     global uart_sound
     global game_mode
+    global redeploy_timer
     score += add * score_multiplier
     # Reverse because RTL idk what I'm doing
     text_area_score.text = ''.join(reversed(f"{score}"))
     if game_mode == MODE_BALL_LAUNCH: # In case there was an IR sensor skipover
         game_mode = MODE_PLAYING
+        redeploy_timer = time.monotonic() + REDEPLOY_DELAY
         if mission_status == MISSION_STATUS_NONE:
             set_status_text(WAITING_MISSION_SELECT_TEXT)
         send_uart(uart_sound, 'PNT')
@@ -296,6 +301,7 @@ DROP_TARGET_RESET_SOUND_DELAY = 0.75
 HYPERSPACE_DECREASE_TIMER = 60  # Delay to decrease the hyperspace bonus
 cur_hyperspace_trigger_timer = 0
 ball_drained_timer = None
+extra_ball = False
 BALL_DRAIN_DELAY = 2.5
 
 def readline(uart_bus):
@@ -323,6 +329,9 @@ def readline(uart_bus):
     global message_timer
     global next_message
     global light_blink_anims
+    global extra_ball
+    global redeploy_ball
+    global redeploy_timer
     data = uart_bus.readline()
     mission_accepted_this_frame = False
     if data is not None:
@@ -335,7 +344,7 @@ def readline(uart_bus):
             if command == 'HYP':
                 # Hyperspace
                 print(f"Hyperspace launched {cur_hyperspace_value + 1}")
-                increase_score((cur_hyperspace_value + 1) * 100)
+                increase_score((cur_hyperspace_value + 1) * 200)
                 if mission_status != MISSION_STATUS_SELECTED:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission] or mission_hits_left != 1:
                         play_sound(HYPERSPACE_SOUND_LIST[cur_hyperspace_value])
@@ -366,6 +375,17 @@ def readline(uart_bus):
                         next_message = next_message_to_set
                         message_timer = MESSAGE_DELAY + time.monotonic()
                     increase_score(1500)
+                elif cur_hyperspace_value == 5:
+                    if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
+                        next_message_to_set = current_status_text
+                        if message_timer:
+                            next_message_to_set = next_message
+                        set_status_text('Extra Ball Awarded')
+                        next_message = next_message_to_set
+                        message_timer = MESSAGE_DELAY + time.monotonic()
+                    extra_ball = True
+                    # Turn on extra ball light
+                    blink_light(LIGHT_EXTRA_BALL, 10, 0.125, True)
                 elif mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                     next_message_to_set = current_status_text
                     if message_timer:
@@ -373,23 +393,32 @@ def readline(uart_bus):
                     set_status_text('Hyperspace Bonus')
                     next_message = next_message_to_set
                     message_timer = MESSAGE_DELAY + time.monotonic()
+                if cur_hyperspace_value + 1 < len(HYPERSPACE_SOUND_LIST):
+                    # Blink new hyperspace light and keep on
+                    blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 10, 0.125, True)
+                else:
+                    # Blink all hyperspace lights then turn off
+                    for arr in LIGHT_HYPERSPACE_BAR:
+                        blink_light(arr, 10, 0.125, False)
                 cur_hyperspace_value = (cur_hyperspace_value + 1) % len(HYPERSPACE_SOUND_LIST)
-                # TODO: Blink new hyperspace light
             elif command == 'DRN':
                 # Ball drained
                 print("Ball drained!")
                 game_mode = MODE_BALL_DRAIN
-                # TODO: Handle replay/redeploy
-                set_status_text(f"Crash Bonus {crash_bonus * score_multiplier}")
-                increase_score(crash_bonus)
+                if not extra_ball and not redeploy_ball:
+                    set_status_text(f"Crash Bonus {crash_bonus * score_multiplier}")
+                    increase_score(crash_bonus)
+                    cur_mission = None
+                    mission_status = MISSION_STATUS_NONE
+                    # Turn off any animations
+                    light_blink_anims = []
+                    # Turn off mission lights
+                    for arr in LIGHT_MISSION_SELECT:
+                        set_light(arr, False)
                 # Relay to sound board
                 send_uart(uart_sound, command)
                 # Wait for a bit before reloading
                 ball_drained_timer = time.monotonic()
-                cur_mission = None
-                mission_status = MISSION_STATUS_NONE
-                # TODO: Turn off any mission lights
-                light_blink_anims = []
             elif command == 'DTR':
                 # Drop target reset
                 print("Drop target reset!")
@@ -419,7 +448,11 @@ def readline(uart_bus):
                 crash_bonus += 25
                 # Blink new mission light
                 blink_light(LIGHT_MISSION_SELECT[button_num], 10, 0.125, True)
-                # TODO: Turn off other mission lights
+                # Turn off other mission lights
+                for i in range(len(LIGHT_MISSION_SELECT)):
+                    if i != button_num:
+                        cancel_anim(LIGHT_MISSION_SELECT[i])
+                        set_light(LIGHT_MISSION_SELECT[i], False)
             elif command == 'INI':
                 board_initialized = command_list[1]
                 if board_initialized == 'solenoidDriver':
@@ -449,12 +482,15 @@ def readline(uart_bus):
                 increase_score(ir_scores[int(command_list[1])])
                 if game_mode != MODE_BALL_LAUNCH:
                     crash_bonus += 100
+                else:
+                    redeploy_timer = time.monotonic() + REDEPLOY_DELAY
                 game_mode = MODE_PLAYING
                 set_status_text(WAITING_MISSION_SELECT_TEXT)
                 # Turn off ball deploy light
                 set_light(LIGHT_BALL_DEPLOY, False)
                 # Turn on new IR light
                 set_light(LIGHT_RE_ENTRY[int(command_list[1])], True)
+                # TODO: Bonus sound if all three re-entry lights are lit
             elif command == 'DT':
                 print("Drop target triggered")
                 dt_pin = int(command_list[1])
@@ -689,27 +725,41 @@ while True:
 
     # Reload the ball if we should
     if ball_drained_timer and cur_time > ball_drained_timer + BALL_DRAIN_DELAY:
-        # TODO: Handle replay/extra balls
         ball_drained_timer = None
-        cur_hyperspace_value = 0
-        ball += 1
-        if ball > NUM_BALLS:
-            game_mode = MODE_GAME_OVER
-            set_status_text("Game Over")
-            message_timer = cur_time + MESSAGE_DELAY_LONGER
-            next_message = "Press New Game Button"
-            send_uart(uart_sound, "GOV")
-            send_uart(uart_solenoid, "GOV")
-        else:
-            text_area_ball.text = str(ball)
+        redeploy_timer = None
+        if extra_ball or redeploy_ball:
             send_uart(uart_solenoid, "RLD")
-            game_mode = MODE_BALL_LAUNCH
-            crash_bonus = DEFAULT_CRASH_BONUS
-            set_status_text("Launch Ball")
-            mission_status = MISSION_STATUS_NONE
-            cur_mission = None
+            if extra_ball:
+                set_status_text("Extra Ball")
+            else:
+                set_status_text("Re-Deploy")
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
+            set_light(LIGHT_EXTRA_BALL, False)
+            set_light(LIGHT_RE_DEPLOY, True)
+        else:
+            cur_hyperspace_value = 0
+            ball += 1
+            if ball > NUM_BALLS:
+                game_mode = MODE_GAME_OVER
+                set_status_text("Game Over")
+                message_timer = cur_time + MESSAGE_DELAY_LONGER
+                next_message = "Press New Game Button"
+                send_uart(uart_sound, "GOV")
+                send_uart(uart_solenoid, "GOV")
+            else:
+                text_area_ball.text = str(ball)
+                send_uart(uart_solenoid, "RLD")
+                game_mode = MODE_BALL_LAUNCH
+                crash_bonus = DEFAULT_CRASH_BONUS
+                set_status_text("Launch Ball")
+                mission_status = MISSION_STATUS_NONE
+                cur_mission = None
+                # Turn on ball deploy light
+                set_light(LIGHT_BALL_DEPLOY, True)
+                set_light(LIGHT_RE_DEPLOY, True)
+        extra_ball = False
+        redeploy_ball = True
 
     # Start new game and such
     new_game_button_debouncer.update()
@@ -753,3 +803,7 @@ while True:
         set_status_text(next_message)
         message_timer = None
         next_message = None
+    
+    if ball_drained_timer and cur_time > ball_drained_timer:
+        ball_drained_timer = None
+        # blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False, on_complete=lambda: redeploy_ball = False)
