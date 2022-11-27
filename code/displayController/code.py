@@ -13,6 +13,7 @@ import adafruit_aw9523
 import pwmio
 from adafruit_motor import servo
 import random
+import sys
 
 # Sound fx keys
 STARTUP_SOUND = 0
@@ -85,6 +86,7 @@ MESSAGE_DELAY = 5.0
 MESSAGE_DELAY_LONGER = 8.0
 next_message = ''
 WAITING_MISSION_SELECT_TEXT = "Hit Mission Select Targets"
+WAITING_BALL_LAUNCH_TEXT = "Launch Ball"
 current_status_text = WAITING_MISSION_SELECT_TEXT
 MISSION_NAMES = [
     'Engine Maintenance',
@@ -155,7 +157,7 @@ LIGHT_HYPERSPACE_ARROW = [
 LIGHT_MISSION_ARROW = [
     [[1, pins[3]]], # Attack bumpers
     [[1, pins[4]], [1, pins[5]]], # Slingshots
-    [[1, pins[0]]], # Hyperspace (reuse top hyperspace arrow)
+    [[1, pins[2]]], # Hyperspace (reuse top hyperspace arrow)
 ]
 LIGHT_RE_DEPLOY = [1, pins[6]]
 LIGHT_EXTRA_BALL = [1, pins[7]]
@@ -361,12 +363,14 @@ def readline(uart_bus):
                     # Blink ship lights
                     for arr in LIGHT_SPACESHIP_LASERS:
                         blink_light(arr, 10, 0.125, False)
-                    # TODO: Start blinking relevant mission light(s)
-                    # TODO: Also need a way to stop blinking these light(s) when the mission is complete
+                    # Start blinking relevant mission light(s)
+                    # TODO: Allow for multiple lights per anim so the blinking can't become desynced
+                    for arr in LIGHT_MISSION_ARROW[cur_mission]:
+                        blink_light(arr, 32767, 0.25, False)
                     # Update message after a delay
                     message_timer = MESSAGE_DELAY + time.monotonic()
                     next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
-                elif cur_hyperspace_value == 4:
+                elif cur_hyperspace_value == 3:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                         next_message_to_set = current_status_text
                         if message_timer:
@@ -375,7 +379,7 @@ def readline(uart_bus):
                         next_message = next_message_to_set
                         message_timer = MESSAGE_DELAY + time.monotonic()
                     increase_score(1500)
-                elif cur_hyperspace_value == 5:
+                elif cur_hyperspace_value == 4:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                         next_message_to_set = current_status_text
                         if message_timer:
@@ -474,7 +478,7 @@ def readline(uart_bus):
                     send_uart(uart_solenoid, "RLD")
                     game_mode = MODE_BALL_LAUNCH
                     crash_bonus = DEFAULT_CRASH_BONUS
-                    set_status_text("Launch Ball")
+                    set_status_text(WAITING_BALL_LAUNCH_TEXT)
                     # Turn on ball deploy light
                     set_light(LIGHT_BALL_DEPLOY, True)
                     set_light(LIGHT_RE_DEPLOY, True)
@@ -524,7 +528,11 @@ def readline(uart_bus):
             if mission_status == MISSION_STATUS_ACTIVE and command == MISSION_TARGETS[cur_mission] and not mission_accepted_this_frame:
                 mission_hits_left -= 1
                 if mission_hits_left == 0:
-                    # TODO: Reset mission lights
+                    # Turn off mission arrow lights
+                    for light in LIGHT_MISSION_ARROW:
+                        for arr in light:
+                            cancel_anim(arr)
+                            set_light(arr, False)
                     mission_status = MISSION_STATUS_NONE
                     increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
                     num_missions_completed += 1
@@ -719,10 +727,10 @@ while True:
         cur_hyperspace_trigger_timer = cur_time
         if cur_hyperspace_value < 0:
             cur_hyperspace_value = 0
-        # TODO: Something here about decreasing lights and such
-        #     hyperspace_lights_off()
-        # else:
-        #     hyperspace_lights_on(cur_hyperspace_value)
+        else:
+            # Blink hyperspace bar
+            # TODO: Callback is what decreases cur hyperspace value
+            blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 10, 0.125, False)
 
     # Reload the ball if we should
     if ball_drained_timer and cur_time > ball_drained_timer + BALL_DRAIN_DELAY:
@@ -734,10 +742,14 @@ while True:
                 set_status_text("Extra Ball")
             else:
                 set_status_text("Re-Deploy")
+            message_timer = cur_time + MESSAGE_DELAY_LONGER
+            next_message = WAITING_BALL_LAUNCH_TEXT
             game_mode = MODE_BALL_LAUNCH
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
+            cancel_anim(LIGHT_EXTRA_BALL)
             set_light(LIGHT_EXTRA_BALL, False)
+            cancel_anim(LIGHT_RE_DEPLOY)
             set_light(LIGHT_RE_DEPLOY, True)
         else:
             cur_hyperspace_value = 0
@@ -754,7 +766,7 @@ while True:
                 send_uart(uart_solenoid, "RLD")
                 game_mode = MODE_BALL_LAUNCH
                 crash_bonus = DEFAULT_CRASH_BONUS
-                set_status_text("Launch Ball")
+                set_status_text(WAITING_BALL_LAUNCH_TEXT)
                 mission_status = MISSION_STATUS_NONE
                 cur_mission = None
                 # Turn on ball deploy light
@@ -762,7 +774,17 @@ while True:
                 set_light(LIGHT_RE_DEPLOY, True)
                 # Turn off mission select lights
                 for light in LIGHT_MISSION_SELECT:
+                    cancel_anim(light)
                     set_light(light, False)
+                # Turn off hyperspace lights
+                for light in LIGHT_HYPERSPACE_BAR:
+                    cancel_anim(light)
+                    set_light(light, False)
+                # Turn off mission arrow lights
+                for light in LIGHT_MISSION_ARROW:
+                    for arr in light:
+                        cancel_anim(arr)
+                        set_light(arr, False)
         extra_ball = False
         redeploy_ball = True
 
@@ -777,12 +799,13 @@ while True:
             crash_bonus = DEFAULT_CRASH_BONUS
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
+            cancel_anim(LIGHT_RE_DEPLOY)
             set_light(LIGHT_RE_DEPLOY, True)
             score = 0
             ball = 1
             text_area_score.text = str(score)
             text_area_ball.text = str(ball)
-            set_status_text("Launch Ball")
+            set_status_text(WAITING_BALL_LAUNCH_TEXT)
             cur_hyperspace_value = 0
             score_multiplier = 1
             mission_status = MISSION_STATUS_NONE
@@ -813,4 +836,5 @@ while True:
     if redeploy_timer and cur_time > redeploy_timer:
         redeploy_timer = None
         redeploy_ball = False
+        # TODO: Callback that turns off redeploy global
         blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False)#, on_complete=lambda: redeploy_ball = False)
