@@ -280,6 +280,7 @@ def increase_score(add):
         cur_hyperspace_trigger_timer = time.monotonic()
         if mission_status == MISSION_STATUS_NONE:
             set_status_text(WAITING_MISSION_SELECT_TEXT)
+            # TODO: Anim mission select buttons
         send_uart(uart_sound, 'PNT')
         # Turn off ball deploy light
         set_light(LIGHT_BALL_DEPLOY, False)
@@ -356,6 +357,7 @@ def readline(uart_bus):
                         play_sound(HYPERSPACE_SOUND_LIST[cur_hyperspace_value])
                         # Blink ship lights
                         for arr in LIGHT_SPACESHIP_LASERS:
+                            # TODO: Multi-light blink so no desync
                             blink_light(arr, NUM_HYP_BLINKS[cur_hyperspace_value], 0.125, False)
                 cur_hyperspace_trigger_timer = time.monotonic()
                 if mission_status == MISSION_STATUS_SELECTED:
@@ -366,6 +368,7 @@ def readline(uart_bus):
                     send_uart(uart_sound, 'ACC')
                     # Blink ship lights
                     for arr in LIGHT_SPACESHIP_LASERS:
+                        # TODO: Multi-light blink so no desync
                         blink_light(arr, 10, 0.125, False)
                     # Start blinking relevant mission light(s)
                     # TODO: Allow for multiple lights per anim so the blinking can't become desynced
@@ -408,12 +411,15 @@ def readline(uart_bus):
                         cancel_anim(arr, False)
                         if i < cur_hyperspace_value:
                             set_light(arr, True)
+                        elif i > cur_hyperspace_value:
+                            set_light(arr, False)
                     # Blink new hyperspace light and keep on
                     blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 10, 0.125, True)
                 else:
                     # Blink all hyperspace lights then turn off
                     for arr in LIGHT_HYPERSPACE_BAR:
                         cancel_anim(arr, False)
+                        # TODO: Multi-light blink so no desync
                         blink_light(arr, 10, 0.125, False)
                 cur_hyperspace_value = (cur_hyperspace_value + 1) % len(HYPERSPACE_SOUND_LIST)
             elif command == 'DRN':
@@ -457,6 +463,7 @@ def readline(uart_bus):
                 message_timer = MESSAGE_DELAY + time.monotonic()
                 # Blink all 3 drop target lights
                 for i in range(3):
+                    # TODO: Multi-light blink so no desync
                     blink_light(LIGHT_DROP_TARGET[i], 10, 0.125, True)
                 # Blink new multiplier light
                 blink_light(LIGHT_DT_MULTIPLIER[score_multiplier - 2], 10, 0.11, True)
@@ -513,6 +520,7 @@ def readline(uart_bus):
                     cur_hyperspace_trigger_timer = time.monotonic()
                 game_mode = MODE_PLAYING
                 set_status_text(WAITING_MISSION_SELECT_TEXT)
+                # TODO: Anim mission select buttons
                 # Turn off ball deploy light
                 set_light(LIGHT_BALL_DEPLOY, False)
                 # Turn on new IR light
@@ -538,6 +546,7 @@ def readline(uart_bus):
                             global ir_lights
                             for j in range(len(LIGHT_RE_ENTRY)):
                                 set_light(LIGHT_RE_ENTRY[j], ir_lights[j])
+                        # TODO: Multi-light blink so no desync
                         blink_light(LIGHT_RE_ENTRY[i], 20, 0.125, False, on_complete=reset_ir_lights)
             elif command == 'DT':
                 print("Drop target triggered")
@@ -596,21 +605,25 @@ def readline(uart_bus):
                         cur_rank = min(cur_rank, len(RANK_NAMES) - 1)
                         set_status_text(f"Promotion to {RANK_NAMES[cur_rank]}")
                         next_message = WAITING_MISSION_SELECT_TEXT
+                        # TODO: Anim mission select buttons
                         message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
                         send_uart(uart_sound, f'RNK {cur_rank}')
                         if command == 'HYP':
                             # Blink ship lights
                             for arr in LIGHT_SPACESHIP_LASERS:
+                                # TODO: Multi-light blink so no desync
                                 blink_light(arr, 14, 0.125, False)
                     else:
                         set_status_text("Mission Completed")
                         next_message = WAITING_MISSION_SELECT_TEXT
+                        # TODO: Anim mission select buttons
                         message_timer = MESSAGE_DELAY_LONGER + time.monotonic()
                         crash_bonus += 550 * cur_rank
                         send_uart(uart_sound, f'MSN {num_missions_completed}')
                         if command == 'HYP':
                             # Blink ship lights
                             for arr in LIGHT_SPACESHIP_LASERS:
+                                # TODO: Multi-light blink so no desync
                                 blink_light(arr, 16, 0.125, False)
                 elif mission_hits_left == 1:
                     set_status_text(MISSION_STATUS_TEXT_SINGULAR[cur_mission])
