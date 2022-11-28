@@ -437,6 +437,7 @@ def readline(uart_bus):
                         for i in range(len(ir_lights)):
                             set_light(LIGHT_RE_ENTRY[i], ir_lights[i])
                     elif redeploy_ball: # Stop redeploy blink animation if currently blinking
+                        redeploy_timer = time.monotonic() + REDEPLOY_DELAY # Don't allow redeploy blink after drain
                         cancel_anim(LIGHT_RE_DEPLOY, False)
                         set_light(LIGHT_RE_DEPLOY, True)
                     # Relay to sound board
@@ -554,14 +555,20 @@ def readline(uart_bus):
             elif command == 'FLU':
                 print("Left flipper Up")
                 set_light(LIGHT_LEFT_FLIPPER, True)
-                # TODO: Cycle re-entry lights
+                # Cycle re-entry lights left
+                ir_lights = ir_lights[1:] + [ir_lights[0]]
+                for i in range(len(LIGHT_RE_ENTRY)):
+                    set_light(LIGHT_RE_ENTRY[i], ir_lights[i])
             elif command == 'FLD':
                 print("Left flipper Down")
                 set_light(LIGHT_LEFT_FLIPPER, False)
             elif command == 'FRU':
                 print("Right flipper Up")
                 set_light(LIGHT_RIGHT_FLIPPER, True)
-                # TODO: Cycle re-entry lights
+                # Cycle re-entry lights right
+                ir_lights = [ir_lights[-1]] + ir_lights[:-1]
+                for i in range(len(LIGHT_RE_ENTRY)):
+                    set_light(LIGHT_RE_ENTRY[i], ir_lights[i])
             elif command == 'FRD':
                 print("Right flipper Down")
                 set_light(LIGHT_RIGHT_FLIPPER, False)
@@ -581,6 +588,9 @@ def readline(uart_bus):
                     increase_score(MISSION_REWARDS[cur_mission] * cur_rank)
                     num_missions_completed += 1
                     cur_mission = None
+                    for light in LIGHT_MISSION_SELECT:
+                        cancel_anim(light)
+                        set_light(light, False)
                     if num_missions_completed == MISSIONS_PER_RANK:
                         crash_bonus += 1000 * cur_rank
                         num_missions_completed = 0
@@ -847,6 +857,10 @@ while True:
             print("Start new game")
             game_mode = MODE_BALL_LAUNCH
             crash_bonus = DEFAULT_CRASH_BONUS
+            # Turn off all lights
+            for aw_device in range(len(aw_devices)):
+                for pin in range(len(pins)):
+                    set_light([aw_device, pin], False)
             # Turn on ball deploy light
             set_light(LIGHT_BALL_DEPLOY, True)
             cancel_anim(LIGHT_RE_DEPLOY, False)
@@ -861,10 +875,6 @@ while True:
             mission_status = MISSION_STATUS_NONE
             cur_mission = None
             num_missions_completed = 0
-            # Turn off all lights
-            for aw_device in range(len(aw_devices)):
-                for pin in range(len(pins)):
-                    set_light([aw_device, pin], False)
             # Turn on drop target lights
             for i in range(len(LIGHT_DROP_TARGET)):
                 set_light(LIGHT_DROP_TARGET[i], True)
