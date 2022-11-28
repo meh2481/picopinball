@@ -949,7 +949,7 @@ while True:
 
         blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False, on_complete=redeploy_callback)
 
-    if game_mode == MODE_PLAYING and hyperspace_arrow_time and cur_time > hyperspace_arrow_time + HYPERSPACE_ARROW_DELAY:
+    if hyperspace_arrow_time and cur_time > hyperspace_arrow_time + HYPERSPACE_ARROW_DELAY:
         hyperspace_arrow_time = cur_time
         # Cycle through hyperspace arrow animation
         hyperspace_arrow_animation = [hyperspace_arrow_animation[-1]] + hyperspace_arrow_animation[:-1]
