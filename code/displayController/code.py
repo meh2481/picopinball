@@ -364,6 +364,7 @@ def readline(uart_bus):
                     set_status_text('Mission Accepted')
                     mission_accepted_this_frame = True
                     mission_status = MISSION_STATUS_ACTIVE
+                    # TODO: Turn off hyperspace arrow animation
                     mission_hits_left = MISSION_HIT_COUNTS[cur_mission] + cur_rank
                     send_uart(uart_sound, 'ACC')
                     # Blink ship lights
@@ -371,8 +372,8 @@ def readline(uart_bus):
                         # TODO: Multi-light blink so no desync
                         blink_light(arr, 10, 0.125, False)
                     # Start blinking relevant mission light(s)
-                    # TODO: Allow for multiple lights per anim so the blinking can't become desynced
                     for arr in LIGHT_MISSION_ARROW[cur_mission]:
+                        # TODO: Multi-light blink so no desync
                         blink_light(arr, sys.maxsize, 0.25, False)
                     # Update message after a delay
                     message_timer = MESSAGE_DELAY + time.monotonic()
@@ -432,10 +433,18 @@ def readline(uart_bus):
                         increase_score(crash_bonus)
                         cur_mission = None
                         mission_status = MISSION_STATUS_NONE
+                        # TODO: Turn off hyperspace arrow animation
                         # Turn off any animations
                         light_blink_anims = []
                         # Turn off mission lights
                         for arr in LIGHT_MISSION_SELECT:
+                            set_light(arr, False)
+                        # Turn off mission arrow lights
+                        for arr in LIGHT_MISSION_ARROW:
+                            for arr2 in arr:
+                                set_light(arr2, False)
+                        # Turn off hyperspace lights
+                        for arr in LIGHT_HYPERSPACE_BAR:
                             set_light(arr, False)
                         # Make sure re-entry lights are set correctly
                         for i in range(len(ir_lights)):
@@ -474,7 +483,7 @@ def readline(uart_bus):
                     set_status_text(f"Launch to Perform {MISSION_NAMES[button_num]}")
                     cur_mission = button_num
                     mission_status = MISSION_STATUS_SELECTED
-                    # TODO: Turn on hyperspace arrow animation
+                    # TODO: Turn on hyperspace arrow animation if not on already
                 increase_score(50)
                 crash_bonus += 25
                 # Blink new mission light
