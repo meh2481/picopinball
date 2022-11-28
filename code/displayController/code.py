@@ -409,11 +409,9 @@ def readline(uart_bus):
                         if i < cur_hyperspace_value:
                             set_light(arr, True)
                     # Blink new hyperspace light and keep on
-                    # TODO: Count depending on cur sound
                     blink_light(LIGHT_HYPERSPACE_BAR[cur_hyperspace_value], 10, 0.125, True)
                 else:
                     # Blink all hyperspace lights then turn off
-                    # TODO: Count depending on cur sound
                     for arr in LIGHT_HYPERSPACE_BAR:
                         cancel_anim(arr, False)
                         blink_light(arr, 10, 0.125, False)
@@ -865,6 +863,9 @@ while True:
             set_light(LIGHT_BALL_DEPLOY, True)
             cancel_anim(LIGHT_RE_DEPLOY, False)
             set_light(LIGHT_RE_DEPLOY, True)
+            # Clear ir_lights array
+            for i in range(len(ir_lights)):
+                ir_lights[i] = False
             score = 0
             ball = 1
             text_area_score.text = str(score)
@@ -900,6 +901,6 @@ while True:
         def redeploy_callback():
             global redeploy_ball
             redeploy_ball = False
-            play_sound(CENTER_POST_GONE_SOUND)
+            # play_sound(CENTER_POST_GONE_SOUND)
 
         blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False, on_complete=redeploy_callback)
