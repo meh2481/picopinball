@@ -307,6 +307,7 @@ cur_hyperspace_trigger_timer = 0
 ball_drained_timer = None
 extra_ball = False
 BALL_DRAIN_DELAY = 2.5
+ir_lights = [False, False, False]
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
@@ -336,6 +337,7 @@ def readline(uart_bus):
     global extra_ball
     global redeploy_ball
     global redeploy_timer
+    global ir_lights
     data = uart_bus.readline()
     mission_accepted_this_frame = False
     if data is not None:
@@ -431,6 +433,9 @@ def readline(uart_bus):
                         # Turn off mission lights
                         for arr in LIGHT_MISSION_SELECT:
                             set_light(arr, False)
+                        # Make sure re-entry lights are set correctly
+                        for i in range(len(ir_lights)):
+                            set_light(LIGHT_RE_ENTRY[i], ir_lights[i])
                     elif redeploy_ball: # Stop redeploy blink animation if currently blinking
                         cancel_anim(LIGHT_RE_DEPLOY, False)
                         set_light(LIGHT_RE_DEPLOY, True)
@@ -500,7 +505,8 @@ def readline(uart_bus):
                     set_light(LIGHT_RE_DEPLOY, True)
             elif command == 'IR':
                 print("IR sensor triggered")
-                increase_score(ir_scores[int(command_list[1])])
+                ir_light = int(command_list[1])
+                increase_score(ir_scores[ir_light])
                 if game_mode != MODE_BALL_LAUNCH:
                     crash_bonus += 100
                 else:
@@ -511,8 +517,29 @@ def readline(uart_bus):
                 # Turn off ball deploy light
                 set_light(LIGHT_BALL_DEPLOY, False)
                 # Turn on new IR light
-                set_light(LIGHT_RE_ENTRY[int(command_list[1])], True)
-                # TODO: Bonus sound if all three re-entry lights are lit
+                set_light(LIGHT_RE_ENTRY[ir_light], True)
+                prev_ir_light_val = ir_lights[ir_light]
+                ir_lights[ir_light] = True
+                # Bonus if all three re-entry lights are lit
+                if not prev_ir_light_val and all(ir_lights):
+                    play_sound(BONUS_AWARDED_SOUND)
+                    increase_score(1000)
+                    crash_bonus += 200
+                    # Set bonus awarded text
+                    next_message_to_set = current_status_text
+                    if message_timer:
+                        next_message_to_set = next_message
+                    set_status_text("Bonus Awarded")
+                    message_timer = MESSAGE_DELAY + time.monotonic()
+                    next_message = next_message_to_set
+                    # Blink off all re-entry lights
+                    for i in range(len(LIGHT_RE_ENTRY)):
+                        ir_lights[i] = False
+                        def reset_ir_lights():
+                            global ir_lights
+                            for j in range(len(LIGHT_RE_ENTRY)):
+                                set_light(LIGHT_RE_ENTRY[j], ir_lights[j])
+                        blink_light(LIGHT_RE_ENTRY[i], 20, 0.125, False, on_complete=reset_ir_lights)
             elif command == 'DT':
                 print("Drop target triggered")
                 dt_pin = int(command_list[1])
