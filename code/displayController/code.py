@@ -309,6 +309,12 @@ ball_drained_timer = None
 extra_ball = False
 BALL_DRAIN_DELAY = 2.5
 ir_lights = [False, False, False]
+DEFAULT_HYPERSPACE_ARROW_ANIMATION = [False, False, False, False, False, False, True]
+hyperspace_arrow_animation = DEFAULT_HYPERSPACE_ARROW_ANIMATION
+hyperspace_arrow_time = None
+HYPERSPACE_ARROW_DELAY = 0.125
+HYP_JACKPOT = 3
+HYP_EXTRA_BALL = 4
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
@@ -339,6 +345,8 @@ def readline(uart_bus):
     global redeploy_ball
     global redeploy_timer
     global ir_lights
+    global hyperspace_arrow_animation
+    global hyperspace_arrow_time
     data = uart_bus.readline()
     mission_accepted_this_frame = False
     if data is not None:
@@ -364,7 +372,10 @@ def readline(uart_bus):
                     set_status_text('Mission Accepted')
                     mission_accepted_this_frame = True
                     mission_status = MISSION_STATUS_ACTIVE
-                    # TODO: Turn off hyperspace arrow animation
+                    # Turn off hyperspace arrow animation
+                    hyperspace_arrow_time = None
+                    for arr in LIGHT_HYPERSPACE_ARROW:
+                        set_light(arr, False)
                     mission_hits_left = MISSION_HIT_COUNTS[cur_mission] + cur_rank
                     send_uart(uart_sound, 'ACC')
                     # Blink ship lights
@@ -378,7 +389,12 @@ def readline(uart_bus):
                     # Update message after a delay
                     message_timer = MESSAGE_DELAY + time.monotonic()
                     next_message = MISSION_STATUS_TEXT_PLURAL[cur_mission].format(mission_hits_left)
-                elif cur_hyperspace_value == 3:
+                    # Award extra ball if available
+                    if cur_hyperspace_value == HYP_EXTRA_BALL:
+                        extra_ball = True
+                        # Turn on extra ball light
+                        blink_light(LIGHT_EXTRA_BALL, 10, 0.125, True)
+                elif cur_hyperspace_value == HYP_JACKPOT:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                         next_message_to_set = current_status_text
                         if message_timer:
@@ -387,7 +403,7 @@ def readline(uart_bus):
                         next_message = next_message_to_set
                         message_timer = MESSAGE_DELAY + time.monotonic()
                     increase_score(1500)
-                elif cur_hyperspace_value == 4:
+                elif cur_hyperspace_value == HYP_EXTRA_BALL:
                     if mission_status != MISSION_STATUS_ACTIVE or command != MISSION_TARGETS[cur_mission]:
                         next_message_to_set = current_status_text
                         if message_timer:
@@ -433,7 +449,10 @@ def readline(uart_bus):
                         increase_score(crash_bonus)
                         cur_mission = None
                         mission_status = MISSION_STATUS_NONE
-                        # TODO: Turn off hyperspace arrow animation
+                        # Turn off hyperspace arrow animation
+                        hyperspace_arrow_time = None
+                        for arr in LIGHT_HYPERSPACE_ARROW:
+                            set_light(arr, False)
                         # Turn off any animations
                         light_blink_anims = []
                         # Turn off mission lights
@@ -483,7 +502,10 @@ def readline(uart_bus):
                     set_status_text(f"Launch to Perform {MISSION_NAMES[button_num]}")
                     cur_mission = button_num
                     mission_status = MISSION_STATUS_SELECTED
-                    # TODO: Turn on hyperspace arrow animation if not on already
+                    # Turn on hyperspace arrow animation if not on already
+                    if not hyperspace_arrow_time:
+                        hyperspace_arrow_animation = DEFAULT_HYPERSPACE_ARROW_ANIMATION
+                        hyperspace_arrow_time = time.monotonic()
                 increase_score(50)
                 crash_bonus += 25
                 # Blink new mission light
@@ -926,3 +948,10 @@ while True:
             # play_sound(CENTER_POST_GONE_SOUND)
 
         blink_light(LIGHT_RE_DEPLOY, 10, 0.125, False, on_complete=redeploy_callback)
+
+    if game_mode == MODE_PLAYING and hyperspace_arrow_time and cur_time > hyperspace_arrow_time + HYPERSPACE_ARROW_DELAY:
+        hyperspace_arrow_time = cur_time
+        # Cycle through hyperspace arrow animation
+        hyperspace_arrow_animation = [hyperspace_arrow_animation[-1]] + hyperspace_arrow_animation[:-1]
+        for i in range(len(LIGHT_HYPERSPACE_ARROW)):
+            set_light(LIGHT_HYPERSPACE_ARROW[i], hyperspace_arrow_animation[i])
