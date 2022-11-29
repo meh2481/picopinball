@@ -565,10 +565,10 @@ def readline(uart_bus):
                 else:
                     redeploy_timer = time.monotonic() + REDEPLOY_DELAY
                     cur_hyperspace_trigger_timer = time.monotonic()
+                    # Anim mission select buttons
+                    blink_light(LIGHT_MISSION_SELECT, sys.maxsize, 1.0, False)
                 game_mode = MODE_PLAYING
                 set_status_text(WAITING_MISSION_SELECT_TEXT)
-                # Anim mission select buttons
-                blink_light(LIGHT_MISSION_SELECT, sys.maxsize, 1.0, False)
                 # Turn off ball deploy light
                 set_light(LIGHT_BALL_DEPLOY, False)
                 # Turn on new IR light
