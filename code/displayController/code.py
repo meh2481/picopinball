@@ -89,23 +89,35 @@ WAITING_MISSION_SELECT_TEXT = "Hit Mission Select Targets"
 WAITING_BALL_LAUNCH_TEXT = "Launch Ball"
 current_status_text = WAITING_MISSION_SELECT_TEXT
 MISSION_NAMES = [
-    'Engine Maintenance',
-    'Thruster Tests',
     'Orbital Refueling',
+    'Thruster Tests',
+    'Engine Maintenance',
 ]
-MISSION_HIT_COUNTS = [2, 3, 1]
-MISSION_TARGETS = ['PB', 'SLG', 'HYP']
+MISSION_HIT_COUNTS = [
+    1,
+    3,
+    2,
+]
+MISSION_TARGETS = [
+    'HYP',
+    'SLG',
+    'PB',
+]
 MISSION_STATUS_TEXT_PLURAL = [
-    '{} Engine Bumper Hits Left',
-    '{} Slingshot Thruster Hits Left',
     '{} Hyperspace Launches Left',
+    '{} Slingshot Thruster Hits Left',
+    '{} Engine Bumper Hits Left',
 ]
 MISSION_STATUS_TEXT_SINGULAR = [
-    '1 Engine Bumper Hit Left',
-    '1 Slingshot Thruster Hit Left',
     '1 Hyperspace Launch Left',
+    '1 Slingshot Thruster Hit Left',
+    '1 Engine Bumper Hit Left',
 ]
-MISSION_REWARDS = [50_000, 30_000, 25_000]
+MISSION_REWARDS = [
+    25_000,
+    30_000,
+    50_000,
+]
 MISSIONS_PER_RANK = 3
 RANK_NAMES = [
     'Cadet',
@@ -155,9 +167,9 @@ LIGHT_HYPERSPACE_ARROW = [
     [1, pins[2]], # Top
 ]
 LIGHT_MISSION_ARROW = [
-    [[1, pins[3]]], # Attack bumpers
-    [[1, pins[4]], [1, pins[5]]], # Slingshots
     [[1, pins[2]]], # Hyperspace (reuse top hyperspace arrow)
+    [[1, pins[4]], [1, pins[5]]], # Slingshots
+    [[1, pins[3]]], # Attack bumpers
 ]
 LIGHT_RE_DEPLOY = [1, pins[6]]
 LIGHT_EXTRA_BALL = [1, pins[7]]
@@ -219,13 +231,16 @@ def cancel_anim(arr, call_callback=True):
             if call_callback:
                 light_blink_anims[i][5]() # Call callback
             del light_blink_anims[i]
-        # Test for one light in the anim matching
-        for sub_arr in light_blink_anims[i][0]:
-            if sub_arr in arr:
-                if call_callback:
-                    light_blink_anims[i][5]()
-                del light_blink_anims[i]
-                break
+        else:
+            # Test for one light in the anim matching
+            print(f'i: {light_blink_anims[i]}')
+            print(f'i0: {light_blink_anims[i][0]}')
+            for sub_arr in light_blink_anims[i][0]:
+                if sub_arr in arr:
+                    if call_callback:
+                        light_blink_anims[i][5]()
+                    del light_blink_anims[i]
+                    break
 
 # Release any resources currently in use for the displays
 displayio.release_displays()
@@ -270,7 +285,7 @@ def init_uart(tx_pin, rx_pin):
 score_multiplier = 1
 redeploy_timer = None
 redeploy_ball = True
-REDEPLOY_DELAY = 6
+REDEPLOY_DELAY = 10.0
 
 def increase_score(add):
     """Update the score on the screen."""
@@ -324,8 +339,8 @@ DEFAULT_HYPERSPACE_ARROW_ANIMATION = [False, False, False, False, False, False, 
 hyperspace_arrow_animation = DEFAULT_HYPERSPACE_ARROW_ANIMATION
 hyperspace_arrow_time = None
 HYPERSPACE_ARROW_DELAY = 0.125
-HYP_JACKPOT = 3
-HYP_EXTRA_BALL = 4
+HYP_JACKPOT = 4
+HYP_EXTRA_BALL = 3
 
 def readline(uart_bus):
     """Read a line from the UART bus and print it to console."""
