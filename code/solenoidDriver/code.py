@@ -12,7 +12,7 @@ SLING_TRIGGER_TIME = 0.11
 POP_BUMPER_TRIGGER_TIME = 0.125
 POP_BUMPER_DEBOUNCE_TIME = 0.125
 NUM_POP_BUMPER_SAMPLES = 20
-POP_BUMPER_SENSITIVITY = 20
+POP_BUMPER_SENSITIVITY = 15
 POP_BUMPER_DEBOUNCE_COUNT = 20
 POP_BUMPER_CALIBRATE_COUNT = 10000
 POP_BUMPER_DEBOUNCE_DECREMENT = 10
@@ -67,6 +67,8 @@ def readline():
                 # Reset the drop targets
                 drop_target_state = DROP_TARGET_STATE_WAIT
                 drop_target_start_time = time.monotonic()
+                # Recalibrate the pop bumpers
+                calibrate_pop_bumpers()
                 # Fire the reload solenoid
                 reload_solenoid.value = True
                 reload_solenoid_timer = time.monotonic()
@@ -101,26 +103,33 @@ pop_bumper_vals = [
 pb_debounce_counter = [0 for _ in range(3)]
 
 max_pb_val = [0, 0, 0]
+avg_val = 0
 
 # Calibrate pop bumpers
-print("Calibrating pop bumper sensors...")
-calibration_counter = POP_BUMPER_CALIBRATE_COUNT
-status_led.value = False    # Turn off status LED while calibrating and setting up
-while calibration_counter > 0:
-    for i in range(3):
-        val = pop_bumper_pins[i].value
-        pop_bumper_vals[i].append(val)
-        pop_bumper_vals[i].pop(0)
-        avg_val = sum(pop_bumper_vals[i]) / len(pop_bumper_vals[i])
-        calibration_counter -= 1
-        if avg_val > max_pb_val[i]:
-            max_pb_val[i] = avg_val
-print("Pop bumper calibration complete.")
+def calibrate_pop_bumpers():
+    global pop_bumper_vals
+    global avg_val
+    global max_pb_val
+    print("Calibrating pop bumper sensors...")
+    calibration_counter = POP_BUMPER_CALIBRATE_COUNT
+    status_led.value = False    # Turn off status LED while calibrating and setting up
+    while calibration_counter > 0:
+        for i in range(3):
+            val = pop_bumper_pins[i].value
+            pop_bumper_vals[i].append(val)
+            pop_bumper_vals[i].pop(0)
+            avg_val = sum(pop_bumper_vals[i]) / len(pop_bumper_vals[i])
+            calibration_counter -= 1
+            if avg_val > max_pb_val[i]:
+                max_pb_val[i] = avg_val
+    print("Pop bumper calibration complete.")
 
-# Add a bit of margin above which the pop bumper will trigger
-for i in range(3):
-    max_pb_val[i] = max_pb_val[i] + POP_BUMPER_SENSITIVITY
-    print("Pop bumper {} max value: {}".format(i, max_pb_val[i]))
+    # Add a bit of margin above which the pop bumper will trigger
+    for i in range(3):
+        max_pb_val[i] = max_pb_val[i] + POP_BUMPER_SENSITIVITY
+        print("Pop bumper {} max value: {}".format(i, max_pb_val[i]))
+
+calibrate_pop_bumpers()
 
 # Init pop bumper output pins
 pop_bumper_1_out = DigitalInOut(board.GP20)

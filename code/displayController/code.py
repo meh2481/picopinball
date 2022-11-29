@@ -95,8 +95,8 @@ MISSION_NAMES = [
 ]
 MISSION_HIT_COUNTS = [
     1,
-    3,
     2,
+    1,
 ]
 MISSION_TARGETS = [
     'HYP',
@@ -793,7 +793,7 @@ NUM_HYP_BLINKS = [
 cur_hyperspace_value = 0
 gameover_anim_timer = time.monotonic()
 GAMEOVER_ANIM_LED_BLINK_TIME = 0.75
-NUM_BALLS = 5
+NUM_BALLS = 3
 while True:
 
     # Read any data waiting on the UART lines
