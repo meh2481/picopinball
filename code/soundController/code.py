@@ -463,18 +463,14 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                         led_anim_state = ANIM_STATE_PLAYING
                         pixels_perimeter.fill((255, 255, 255))
                         pixels_perimeter.show()
+                        pixels_ring.fill((0, 0, 0))
                         # Show center lights for current state
                         for i in range(24):
                             if i < num_complete_missions * 8:
                                 pixels_ring[i] = OUTER_RING_COLOR
-                            else:
-                                pixels_ring[i] = (0, 0, 0)
                         for i in range(12):
                             if i < cur_rank + 1:
                                 pixels_ring[i+24] = INNER_RING_COLOR
-                            else:
-                                pixels_ring[i+24] = (0, 0, 0)
-                        pixels_ring[CENTERMOST_PIXEL] = (0, 0, 0)
                         pixels_ring.show()
 
             # Check mission select buttons

@@ -486,12 +486,14 @@ def readline(uart_bus):
                         # Make sure re-entry lights are set correctly
                         for i in range(len(ir_lights)):
                             set_light(LIGHT_RE_ENTRY[i], ir_lights[i])
+                        # Relay to sound board
+                        send_uart(uart_sound, command)
                     elif redeploy_ball: # Stop redeploy blink animation if currently blinking
                         redeploy_timer = time.monotonic() + REDEPLOY_DELAY # Don't allow redeploy blink after drain
                         cancel_anim([LIGHT_RE_DEPLOY], False)
                         set_light(LIGHT_RE_DEPLOY, True)
-                    # Relay to sound board
-                    send_uart(uart_sound, command)
+                    if extra_ball or redeploy_ball:
+                        play_sound(LAUNCHED_NO_MISSION_SOUND)
                 # Wait for a bit before reloading
                 ball_drained_timer = time.monotonic()
             elif command == 'DTR':
