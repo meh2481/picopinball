@@ -285,7 +285,7 @@ def init_uart(tx_pin, rx_pin):
 score_multiplier = 1
 redeploy_timer = None
 redeploy_ball = True
-REDEPLOY_DELAY = 10.0
+REDEPLOY_DELAY = 6.0
 
 def increase_score(add):
     """Update the score on the screen."""
@@ -328,7 +328,7 @@ def send_uart(uart, str):
 sound_controller_initialized = False
 solenoid_driver_initialized = False
 drop_target_reset_sound_timer = None
-DROP_TARGET_RESET_SOUND_DELAY = 0.75
+DROP_TARGET_RESET_SOUND_DELAY = 1.0
 HYPERSPACE_DECREASE_TIMER = 20  # Delay to decrease the hyperspace bonus
 cur_hyperspace_trigger_timer = 0
 ball_drained_timer = None
@@ -507,8 +507,6 @@ def readline(uart_bus):
                     next_message_to_set = next_message
                 set_status_text(f"Score Multiplier {score_multiplier}x")
                 message_timer = MESSAGE_DELAY + time.monotonic()
-                # Blink all 3 drop target lights
-                blink_light(LIGHT_DROP_TARGET, 10, 0.125, True)
                 # Blink new multiplier light
                 blink_light([LIGHT_DT_MULTIPLIER[score_multiplier - 2]], 10, 0.11, True)
                 next_message = next_message_to_set
@@ -600,6 +598,7 @@ def readline(uart_bus):
                 dt_pin = int(command_list[1])
                 set_light(LIGHT_DROP_TARGET[dt_pin], False)
                 increase_score(1000)
+                play_sound(SECRET_MISSION_SELECTED_SOUND)
             elif command == 'PB':
                 print("Pop Bumper Triggered")
                 increase_score(200)
@@ -829,7 +828,9 @@ while True:
 
     if drop_target_reset_sound_timer and cur_time > drop_target_reset_sound_timer:
         drop_target_reset_sound_timer = None
-        play_sound(random.choice(DROP_TARGET_RESET_SOUNDS))
+        play_sound(HIGH_SCORE_SOUND)
+        # Blink all 3 drop target lights
+        blink_light(LIGHT_DROP_TARGET, 20, 0.125, True)
 
     # Decrease cur_hyperspace_value after a delay & turn off lights
     if game_mode == MODE_PLAYING and cur_time > cur_hyperspace_trigger_timer + HYPERSPACE_DECREASE_TIMER:
@@ -961,7 +962,7 @@ while True:
             redeploy_ball = False
             # play_sound(CENTER_POST_GONE_SOUND)
 
-        blink_light([LIGHT_RE_DEPLOY], 10, 0.125, False, on_complete=redeploy_callback)
+        blink_light([LIGHT_RE_DEPLOY], 26, 0.125, False, on_complete=redeploy_callback)
 
     if hyperspace_arrow_time and cur_time > hyperspace_arrow_time + HYPERSPACE_ARROW_DELAY:
         hyperspace_arrow_time = cur_time
