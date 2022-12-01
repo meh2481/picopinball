@@ -7,13 +7,24 @@ from analogio import AnalogIn
 from digitalio import DigitalInOut, Direction, Pull
 from adafruit_debouncer import Debouncer
 
+# Sensitivity jumper
+sensitivity_pin = DigitalInOut(board.GP15)
+sensitivity_pin.direction = Direction.INPUT
+sensitivity_pin.pull = Pull.UP
+
 # Constants
 SLING_TRIGGER_TIME = 0.11
 POP_BUMPER_TRIGGER_TIME = 0.125
 POP_BUMPER_DEBOUNCE_TIME = 0.125
 NUM_POP_BUMPER_SAMPLES = 20
-POP_BUMPER_SENSITIVITY = 15
-POP_BUMPER_DEBOUNCE_COUNT = 20
+POP_BUMPER_SENSITIVITY = -35
+POP_BUMPER_DEBOUNCE_COUNT = 8
+if sensitivity_pin.value:
+    print("Sensitivity jumper is set to HIGH, decreasing sensitivity")
+    POP_BUMPER_SENSITIVITY = 20
+    POP_BUMPER_DEBOUNCE_COUNT = 20
+else:
+    print("Sensitivity jumper is set to LOW, increasing sensitivity")
 POP_BUMPER_CALIBRATE_COUNT = 10000
 POP_BUMPER_DEBOUNCE_DECREMENT = 10
 DROP_TARGET_WAIT_TIME = 1.0
