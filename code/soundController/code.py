@@ -387,6 +387,7 @@ print("Setting up IR Sensors...")
 # GP27 = left IR sensor
 # GP3 = middle IR sensor
 # GP5 = right IR sensor
+ring_update_delay = None
 with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter(board.GP3, pull=digitalio.Pull.UP) as ir2, countio.Counter(board.GP5, pull=digitalio.Pull.UP) as ir3:
     ir_sensors = [ir1, ir2, ir3]
     print("Start main loop...")
@@ -394,6 +395,34 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
         audio.play(decoder) # Loop music forever
         while audio.playing:
             cur_time = time.monotonic()
+
+            # Check IR sensors
+            for i in range(len(ir_sensors)):
+                if ir_sensors[i].count > 0:
+                    print(f'IR sensor {i} triggered')
+                    play_sound(uart, RE_ENTRY_SOUND)
+                    ir_sensors[i].count = 0
+                    send_uart(f'IR {i}')
+                    # Cancel ball launching animation
+                    if led_anim_state == ANIM_STATE_LAUNCHING:
+                        led_anim_state = ANIM_STATE_PLAYING
+                        # On a delay
+                        ring_update_delay = cur_time + 0.125
+                        pixels_perimeter.fill((255, 255, 255))
+                        pixels_perimeter.show()
+
+            if ring_update_delay and cur_time > ring_update_delay:
+                ring_update_delay = None
+                # Update ring
+                pixels_ring.fill((0, 0, 0))
+                # Show center lights for current state
+                for i in range(24):
+                    if i < num_complete_missions * 8:
+                        pixels_ring[i] = OUTER_RING_COLOR
+                for i in range(12):
+                    if i < cur_rank + 1:
+                        pixels_ring[i+24] = INNER_RING_COLOR
+                pixels_ring.show()
 
             # Update pixel animations
             if led_anim_state == ANIM_STATE_GAME_OVER:
@@ -450,28 +479,6 @@ with countio.Counter(board.GP27, pull=digitalio.Pull.UP) as ir1, countio.Counter
                 readline_comm(uart_comm)
 
             playing_stop_timer -= 1
-
-            # Check IR sensors
-            for i in range(len(ir_sensors)):
-                if ir_sensors[i].count > 0:
-                    print(f'IR sensor {i} triggered')
-                    play_sound(uart, RE_ENTRY_SOUND)
-                    ir_sensors[i].count = 0
-                    send_uart(f'IR {i}')
-                    # Cancel ball launching animation
-                    if led_anim_state == ANIM_STATE_LAUNCHING:
-                        led_anim_state = ANIM_STATE_PLAYING
-                        pixels_perimeter.fill((255, 255, 255))
-                        pixels_perimeter.show()
-                        pixels_ring.fill((0, 0, 0))
-                        # Show center lights for current state
-                        for i in range(24):
-                            if i < num_complete_missions * 8:
-                                pixels_ring[i] = OUTER_RING_COLOR
-                        for i in range(12):
-                            if i < cur_rank + 1:
-                                pixels_ring[i+24] = INNER_RING_COLOR
-                        pixels_ring.show()
 
             # Check mission select buttons
             for i in range(len(debounced_mission_buttons)):
