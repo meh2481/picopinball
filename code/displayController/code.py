@@ -727,7 +727,7 @@ bitmap, palette = adafruit_imageload.load(
 palette.make_transparent(0)
 
 # Make the display context
-bitmap = displayio.TileGrid(bitmap, pixel_shader=palette, x=18, y=0)
+bitmap = displayio.TileGrid(bitmap, pixel_shader=palette, x=0, y=0)
 group = displayio.Group()
 group.append(bitmap)
 display.show(group)
