@@ -73,7 +73,7 @@ pixels_perimeter.show()
 # Initialize neopixel ring
 print("Initializing neopixel ring...")
 pixels_ring = neopixel.NeoPixel(
-    board.GP2, 24+12+1, brightness=0.2, auto_write=False, pixel_order=ORDER
+    board.GP2, 24+12+1, brightness=0.75, auto_write=False, pixel_order=ORDER
 )
 pixels_ring.fill((0, 136, 255))
 pixels_ring.show()

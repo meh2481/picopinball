@@ -190,7 +190,7 @@ def set_light(arr, state):
     """Set the light state."""
     global aw_devices
     global light_state
-    value = 200 if state else 0
+    value = 255 if state else 0
     print(f'Setting light {arr[0]},{arr[1]} to {state}')
     aw_devices[arr[0]].set_constant_current(arr[1], value)
     light_state[arr[0]][arr[1]] = state
